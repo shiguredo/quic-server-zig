@@ -16,6 +16,9 @@ pub const ByteStream = struct {
     /// assuming it's represented in network byte order.
     /// It does NOT advance the position.
     pub fn peek(self: Self, comptime T: type) Error!T {
+        if (@typeInfo(T) != .Int)
+            @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
+
         const rest = self.buf[self.pos..];
         if (rest.len < @sizeOf(T))
             return Error.BufferTooShort;
@@ -27,6 +30,9 @@ pub const ByteStream = struct {
     /// assuming it's represented in network byte order.
     /// It DOES advance the position.
     pub fn get(self: *Self, comptime T: type) Error!T {
+        if (@typeInfo(T) != .Int)
+            @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
+
         const v = try self.peek(T);
         self.pos += @sizeOf(T);
         return v;

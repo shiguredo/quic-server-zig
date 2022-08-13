@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 
 pub const ByteStream = struct {
     /// Data we're looking at.
@@ -11,33 +12,31 @@ pub const ByteStream = struct {
         BufferTooShort,
     };
 
-    pub fn peekU8(self: Self) Error!u8 {
+    pub fn peek(self: Self, comptime T: type) Error!T {
         const rest = self.buf[self.pos..];
-        if (rest.len < @sizeOf(u8))
-            return error.BufferTooShort;
+        if (rest.len < @sizeOf(T))
+            return Error.BufferTooShort;
 
-        return rest[0];
+        return mem.readIntBig(T, rest[0..@sizeOf(T)]);
     }
 
-    pub fn getU8(self: *Self) Error!u8 {
-        const v = try self.peekU8();
-        self.pos += @sizeOf(u8);
+    pub fn get(self: *Self, comptime T: type) Error!T {
+        const v = try self.peek(T);
+        self.pos += @sizeOf(T);
         return v;
     }
 };
 
-test "ByteStream peekU8, getU8" {
+test "ByteStream peek, get" {
     var buf = [_]u8{ 0x00, 0x01, 0x02 };
 
     var s = ByteStream{ .buf = &buf };
 
-    try std.testing.expectEqual(@as(u8, 0), try s.peekU8());
-    try std.testing.expectEqual(@as(u8, 0), try s.getU8());
-    try std.testing.expectEqual(@as(u8, 1), try s.peekU8());
-    try std.testing.expectEqual(@as(u8, 1), try s.getU8());
-    try std.testing.expectEqual(@as(u8, 2), try s.peekU8());
-    try std.testing.expectEqual(@as(u8, 2), try s.getU8());
+    try std.testing.expectEqual(@as(u8, 0), try s.peek(u8));
+    try std.testing.expectEqual(@as(u8, 0), try s.get(u8));
+    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try s.peek(u16));
+    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try s.get(u16));
 
-    try std.testing.expectError(error.BufferTooShort, s.peekU8());
-    try std.testing.expectError(error.BufferTooShort, s.getU8());
+    try std.testing.expectError(error.BufferTooShort, s.peek(u8));
+    try std.testing.expectError(error.BufferTooShort, s.get(u8));
 }

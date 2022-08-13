@@ -12,6 +12,9 @@ pub const ByteStream = struct {
         BufferTooShort,
     };
 
+    /// Reads an integer of type `T` from the current position of the buffer,
+    /// assuming it's represented in network byte order.
+    /// It does NOT advance the position.
     pub fn peek(self: Self, comptime T: type) Error!T {
         const rest = self.buf[self.pos..];
         if (rest.len < @sizeOf(T))
@@ -20,6 +23,9 @@ pub const ByteStream = struct {
         return mem.readIntBig(T, rest[0..@sizeOf(T)]);
     }
 
+    /// Reads an integer of type `T` from the current position of the buffer,
+    /// assuming it's represented in network byte order.
+    /// It DOES advance the position.
     pub fn get(self: *Self, comptime T: type) Error!T {
         const v = try self.peek(T);
         self.pos += @sizeOf(T);

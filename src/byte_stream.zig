@@ -8,7 +8,7 @@ pub const ByteStream = struct {
     pos: usize = 0,
 
     const Self = @This();
-    const Error = error {
+    const Error = error{
         BufferTooShort,
     };
 

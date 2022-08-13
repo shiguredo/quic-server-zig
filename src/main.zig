@@ -7,7 +7,7 @@ pub fn main() !void {
     const sock = try UdpSocket.bind(addr);
     defer sock.deinit();
     var buf: [512]u8 = undefined;
-    
+
     while (true) {
         const recv = try sock.recvFrom(&buf);
         std.log.info("read {} bytes from {}. received data: {s}\n", .{

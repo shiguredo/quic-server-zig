@@ -95,6 +95,9 @@ pub const Bytes = struct {
     }
 
     pub fn put(self: *Self, comptime T: type, value: T) Error!void {
+        if (@typeInfo(T) != .Int)
+            @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
+
         var rest = self.buf[self.pos..];
         if (rest.len < @sizeOf(T))
             return Error.BufferTooShort;

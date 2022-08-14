@@ -66,7 +66,7 @@ pub const Bytes = struct {
     /// Reads a variable-length integer from the current positon of the buffer.
     /// https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
     pub fn getVarInt(self: *Self) Error!u64 {
-        const length = parseVarintLength(try self.peek(u8));
+        const length = parseVarIntLength(try self.peek(u8));
 
         return switch (length) {
             1 => @intCast(u64, try self.get(u8)),
@@ -93,11 +93,45 @@ pub const Bytes = struct {
         const len = try self.getVarInt();
         return self.getBytesOwned(allocator, @intCast(usize, len));
     }
+
+    pub fn put(self: *Self, comptime T: type, value: T) Error!void {
+        var rest = self.buf[self.pos..];
+        if (rest.len < @sizeOf(T))
+            return Error.BufferTooShort;
+
+        mem.writeIntBig(T, rest[0..@sizeOf(T)], value);
+        self.pos += @sizeOf(T);
+    }
+
+    pub fn putBytes(self: *Self, bytes: []const u8) Error!void {
+        var rest = self.buf[self.pos..];
+        if (rest.len < bytes.len)
+            return Error.BufferTooShort;
+
+        mem.copy(u8, rest, bytes);
+        self.pos += bytes.len;
+    }
+
+    pub fn putVarInt(self: *Self, value: u64) Error!void {
+        const length = varIntLength(value);
+
+        var rest = self.buf[self.pos..];
+        if (rest.len < length)
+            return Error.BufferTooShort;
+
+        switch (length) {
+            1 => try self.put(u8, @truncate(u8, value) | (0b00 << 6)),
+            2 => try self.put(u16, @truncate(u16, value) | (0b01 << 14)),
+            4 => try self.put(u32, @truncate(u32, value) | (0b10 << 30)),
+            8 => try self.put(u64, value | (0b11 << 62)),
+            else => unreachable,
+        }
+    }
 };
 
 /// Given the first byte, parses the length of variable-length integer,
 /// as specified in https://datatracker.ietf.org/doc/html/rfc9000#section-16
-pub fn parseVarintLength(first: u8) usize {
+pub fn parseVarIntLength(first: u8) usize {
     return switch (first >> 6) {
         0b00 => 1,
         0b01 => 2,
@@ -105,6 +139,21 @@ pub fn parseVarintLength(first: u8) usize {
         0b11 => 8,
         else => unreachable,
     };
+}
+
+/// Given the original value, returns the length in byte that is necessary
+/// to represent the value in variable-length integer, as specified in
+/// https://datatracker.ietf.org/doc/html/rfc9000#section-16
+pub fn varIntLength(value: u64) usize {
+    return if (value <= 63)
+        @as(usize, 1)
+    else if (value <= 16383)
+        @as(usize, 2)
+    else if (value <= 1073741823)
+        @as(usize, 4)
+    else if (value <= 4611686018427387903)
+        @as(usize, 8)
+    else unreachable;
 }
 
 test "Bytes peek, get" {
@@ -169,5 +218,53 @@ test "Bytes getBytesOwnedWithVarIntLength" {
         const got = try b.getBytesOwnedWithVarIntLength(std.testing.allocator);
         defer got.deinit();
         try std.testing.expectEqualSlices(u8, buf[1..2], got.items);
+    }
+}
+
+test "Bytes put" {
+    var buf: [3]u8 = undefined;
+    var b = Bytes{ .buf = &buf };
+    try b.put(u8, 0x01);
+    try b.put(u16, 0x0203);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x01, 0x02, 0x03 }, &buf);
+}
+
+test "Bytes putBytes" {
+    var buf: [3]u8 = undefined;
+    var b = Bytes{ .buf = &buf };
+
+    try std.testing.expectError(error.BufferTooShort, b.putBytes(&[_]u8{ 0x01, 0x02, 0x03, 0x04 }));
+
+    try b.putBytes(&[_]u8{ 0x01, 0x02, 0x03 });
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x01, 0x02, 0x03 }, &buf);
+}
+
+test "Bytes putVarInt" {
+    {
+        var buf: [1]u8 = undefined;
+        var b = Bytes{ .buf = &buf };
+        try b.putVarInt(37);
+        try std.testing.expectEqualSlices(u8, &[_]u8{0x25}, &buf);
+    }
+
+    {
+        var buf: [2]u8 = undefined;
+        var b = Bytes{ .buf = &buf };
+        try b.putVarInt(15293);
+        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x7b, 0xbd }, &buf);
+    }
+
+    {
+        var buf: [4]u8 = undefined;
+        var b = Bytes{ .buf = &buf };
+        try b.putVarInt(494878333);
+        try std.testing.expectEqualSlices(u8, &[_]u8{ 0x9d, 0x7f, 0x3e, 0x7d }, &buf);
+    }
+
+    {
+        var buf: [8]u8 = undefined;
+        var b = Bytes{ .buf = &buf };
+        try b.putVarInt(151288809941952652);
+        try std.testing.expectEqualSlices(u8, &[_]u8{ 0xc2, 0x19, 0x7c, 0x5e, 0xff, 0x14, 0xe8, 0x8c }, &buf);
     }
 }

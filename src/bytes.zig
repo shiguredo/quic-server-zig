@@ -2,7 +2,10 @@ const std = @import("std");
 const mem = std.mem;
 const ArrayList = std.ArrayList;
 
-pub const ByteStream = struct {
+/// A wrapper around a binary slice, providing several operations useful for reading and manipulating it.
+/// Note that this struct does NOT copy the given binary slice, but just references it.
+/// So it's the caller's responsibility to make the value of type `Bytes` not outlive the referenced slice.
+pub const Bytes = struct {
     /// Data we're looking at.
     buf: []u8,
     /// The current index in the buffer.
@@ -104,66 +107,66 @@ pub fn parseVarintLength(first: u8) usize {
     };
 }
 
-test "ByteStream peek, get" {
+test "Bytes peek, get" {
     var buf = [_]u8{ 0x00, 0x01, 0x02 };
 
-    var s = ByteStream{ .buf = &buf };
+    var b = Bytes{ .buf = &buf };
 
-    try std.testing.expectEqual(@as(u8, 0), try s.peek(u8));
-    try std.testing.expectEqual(@as(u8, 0), try s.get(u8));
-    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try s.peek(u16));
-    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try s.get(u16));
+    try std.testing.expectEqual(@as(u8, 0), try b.peek(u8));
+    try std.testing.expectEqual(@as(u8, 0), try b.get(u8));
+    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.peek(u16));
+    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.get(u16));
 
-    try std.testing.expectError(error.BufferTooShort, s.peek(u8));
-    try std.testing.expectError(error.BufferTooShort, s.get(u8));
+    try std.testing.expectError(error.BufferTooShort, b.peek(u8));
+    try std.testing.expectError(error.BufferTooShort, b.get(u8));
 }
 
-test "ByteStream parse variable-length integer" {
+test "Bytes parse variable-length integer" {
     // test cases are taken from https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
     {
         var buf = [_]u8{0x25};
-        var s = ByteStream{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 37), try s.getVarInt());
+        var b = Bytes{ .buf = &buf };
+        try std.testing.expectEqual(@as(u64, 37), try b.getVarInt());
     }
 
     {
         var buf = [_]u8{ 0x40, 0x25 };
-        var s = ByteStream{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 37), try s.getVarInt());
+        var b = Bytes{ .buf = &buf };
+        try std.testing.expectEqual(@as(u64, 37), try b.getVarInt());
     }
 
     {
         var buf = [_]u8{ 0x7b, 0xbd };
-        var s = ByteStream{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 15293), try s.getVarInt());
+        var b = Bytes{ .buf = &buf };
+        try std.testing.expectEqual(@as(u64, 15293), try b.getVarInt());
     }
 
     {
         var buf = [_]u8{ 0x9d, 0x7f, 0x3e, 0x7d };
-        var s = ByteStream{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 494878333), try s.getVarInt());
+        var b = Bytes{ .buf = &buf };
+        try std.testing.expectEqual(@as(u64, 494878333), try b.getVarInt());
     }
 
     {
         var buf = [_]u8{ 0xc2, 0x19, 0x7c, 0x5e, 0xff, 0x14, 0xe8, 0x8c };
-        var s = ByteStream{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 151288809941952652), try s.getVarInt());
+        var b = Bytes{ .buf = &buf };
+        try std.testing.expectEqual(@as(u64, 151288809941952652), try b.getVarInt());
     }
 }
 
-test "ByteStream getBytesOwnedWithVarIntLength" {
+test "Bytes getBytesOwnedWithVarIntLength" {
     {
         var buf = [_]u8{ 0b00_000001, 0x42 };
-        var s = ByteStream{ .buf = &buf };
-        const got = try s.getBytesOwnedWithVarIntLength(std.testing.allocator);
+        var b = Bytes{ .buf = &buf };
+        const got = try b.getBytesOwnedWithVarIntLength(std.testing.allocator);
         defer got.deinit();
         try std.testing.expectEqualSlices(u8, buf[1..2], got.items);
     }
 
     {
         var buf = [_]u8{ 0b00_000001, 0x42, 0x99 };
-        var s = ByteStream{ .buf = &buf };
-        const got = try s.getBytesOwnedWithVarIntLength(std.testing.allocator);
+        var b = Bytes{ .buf = &buf };
+        const got = try b.getBytesOwnedWithVarIntLength(std.testing.allocator);
         defer got.deinit();
         try std.testing.expectEqualSlices(u8, buf[1..2], got.items);
     }

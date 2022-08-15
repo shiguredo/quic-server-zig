@@ -16,7 +16,7 @@ const form_bit: u8 = 0x80;
 const fixed_bit: u8 = 0x40;
 const key_phase_bit: u8 = 0x04;
 
-const Header = struct {
+pub const Header = struct {
     packet_type: PacketType,
     version: u32,
     /// Destination connection ID of the packet.

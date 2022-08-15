@@ -230,7 +230,7 @@ fn assertHeaderEqual(expected: Header, actual: Header) !void {
 test "Initial" {
     const allocator = std.testing.allocator;
 
-    var d = [_]u8{0} ** 50;
+    var d: [50]u8 = undefined;
 
     const hdr = Header{
         .packet_type = .initial,

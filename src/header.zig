@@ -72,6 +72,34 @@ const Header = struct {
         try self.toBytes(&bs);
     }
 
+    pub fn format(
+        self: Self,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        try writer.print("packet_type = {}\n", .{self.packet_type});
+        try writer.print("version = {}\n", .{self.version});
+        try writer.print("destination_connection_id = {any}\n", .{self.dcid.items});
+        try writer.print("source_connection_id = {any}\n", .{self.scid.items});
+        try writer.print("packet_num_len = {}\n", .{self.packet_num_len});
+        try writer.print("packet_num = {}\n", .{self.packet_num});
+        if (self.token) |t| {
+            try writer.print("token = {any}\n", .{t.items});
+        } else {
+            try writer.writeAll("token = null\n");
+        }
+        if (self.versions) |vs| {
+            try writer.print("versions = {any}\n", .{vs.items});
+        } else {
+            try writer.writeAll("versions = null\n");
+        }
+        try writer.print("key_phase = {}\n", .{self.key_phase});
+    }
+
     fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
         const first = try bs.get(u8);
 

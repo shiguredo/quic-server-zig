@@ -266,3 +266,46 @@ test "Initial" {
 
     try assertHeaderEqual(hdr, got);
 }
+
+test "retry" {
+    const allocator = std.testing.allocator;
+
+    var d: [63]u8 = undefined;
+
+    const hdr = Header{
+        .packet_type = .retry,
+        .version = 0xafafafaf,
+        .dcid = dcid: {
+            var a = ArrayList(u8).init(allocator);
+            errdefer a.deinit();
+            try a.appendSlice(&[_]u8{ 0xba, 0xba, 0xba, 0xba, 0xba, 0xba, 0xba, 0xba, 0xba });
+            break :dcid a;
+        },
+        .scid = scid: {
+            var a = ArrayList(u8).init(allocator);
+            errdefer a.deinit();
+            try a.appendSlice(&[_]u8{ 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb });
+            break :scid a;
+        },
+        .packet_num = 0,
+        .packet_num_len = 0,
+        .token = token: {
+            var a = ArrayList(u8).init(allocator);
+            errdefer a.deinit();
+            try a.appendSlice(&[_]u8{0xba} ** 24);
+            break :token a;
+        },
+        .versions = null,
+        .key_phase = false,
+    };
+    defer hdr.deinit();
+
+    var b = Bytes{ .buf = &d };
+    try hdr.toBytes(&b);
+    // Add fake retry integrity token.
+    try b.putBytes(&[_]u8{0xba} ** 16);
+    const got = try Header.decode(allocator, &d, 9);
+    defer got.deinit();
+
+    try assertHeaderEqual(hdr, got);
+}

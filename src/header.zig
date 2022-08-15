@@ -51,6 +51,7 @@ const Header = struct {
     };
 
     /// Decodes header from the given buffer.
+    /// `dcid_len` is used only when decoding a short header.
     /// Deinitialize with `deinit`.
     pub fn decode(allocator: std.mem.Allocator, buf: []u8, dcid_len: usize) !Self {
         var bs = Bytes{ .buf = buf };

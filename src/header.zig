@@ -20,8 +20,14 @@ const Header = struct {
     packet_type: PacketType,
     version: u32,
     /// Destination connection ID of the packet.
+    /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
+    /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
+    /// packets of future versions. So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
     dcid: ArrayList(u8),
     /// Source connection ID of the packet.
+    /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
+    /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
+    /// packets of future versions. So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
     scid: ArrayList(u8),
     /// Packet number, protected using header protection.
     packet_num: u64,
@@ -36,6 +42,8 @@ const Header = struct {
 
     const Self = @This();
     const packet_type_mask = 0x30;
+    /// In QUIC v1 The length of Connection IDs must be less than or equal to 20,
+    /// as specified in https://datatracker.ietf.org/doc/html/rfc9000#section-17.2
     const max_cid_len = 20;
 
     const DecodeError = error{

@@ -10,10 +10,10 @@ pub fn main() !void {
 
     while (true) {
         const recv = try sock.recvFrom(&buf);
-        std.log.info("read {} bytes from {}. received data: {s}\n", .{
+        std.log.info("read {} bytes from {}. received data: {}\n", .{
             recv.num_bytes,
             recv.src,
-            buf[0..recv.num_bytes],
+            std.fmt.fmtSliceHexLower(buf[0..recv.num_bytes]),
         });
     }
 }

@@ -38,6 +38,10 @@ const Header = struct {
     const packet_type_mask = 0x30;
     const max_cid_len = 20;
 
+    const DecodeError = error{
+        InvalidPacket,
+    };
+
     /// Decodes header from the given buffer.
     /// Deinitialize with `deinit`.
     pub fn decode(allocator: std.mem.Allocator, buf: []u8, dcid_len: usize) !Self {
@@ -86,19 +90,19 @@ const Header = struct {
             0x01 => PacketType.zero_rtt,
             0x02 => PacketType.handshake,
             0x03 => PacketType.retry,
-            else => return error.InvalidPacket,
+            else => return DecodeError.InvalidPacket,
         };
 
         const decoded_dcid_len = try bs.get(u8);
         if (version.isSupported(ver) and dcid_len > max_cid_len)
-            return error.InvalidPacket;
+            return DecodeError.InvalidPacket;
 
         const dcid = try bs.getBytesOwned(allocator, decoded_dcid_len);
         errdefer dcid.deinit();
 
         const scid_len = try bs.get(u8);
         if (version.isSupported(ver) and scid_len > max_cid_len)
-            return error.InvalidPacket;
+            return DecodeError.InvalidPacket;
 
         const scid = try bs.getBytesOwned(allocator, scid_len);
         errdefer scid.deinit();
@@ -114,7 +118,7 @@ const Header = struct {
                 // https://datatracker.ietf.org/doc/html/rfc9000#section-17.2.5
                 const retry_integrity_tag_len = 16;
                 if (bs.remainingCapacity() < retry_integrity_tag_len)
-                    return error.InvalidPacket;
+                    return DecodeError.InvalidPacket;
 
                 const token_len = bs.remainingCapacity() - retry_integrity_tag_len;
                 token = try bs.getBytesOwned(allocator, token_len);
@@ -172,7 +176,7 @@ const Header = struct {
             .zero_rtt => 0x01,
             .handshake => 0x02,
             .retry => 0x03,
-            else => return error.InvalidPacket,
+            else => return DecodeError.InvalidPacket,
         };
 
         first |= form_bit | fixed_bit | (packet_type << 4);

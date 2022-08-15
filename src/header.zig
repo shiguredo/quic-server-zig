@@ -131,7 +131,7 @@ const Header = struct {
         };
 
         const decoded_dcid_len = try bs.get(u8);
-        if (version.isSupported(ver) and dcid_len > max_cid_len)
+        if (version.isSupported(ver) and decoded_dcid_len > max_cid_len)
             return DecodeError.InvalidPacket;
 
         const dcid = try bs.getBytesOwned(allocator, decoded_dcid_len);

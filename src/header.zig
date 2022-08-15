@@ -56,57 +56,7 @@ const Header = struct {
     /// Encodes the header into binary and writes it to `out`.
     pub fn encode(self: Self, out: []u8) !void {
         var bs = Bytes { .buf = out };
-
-        var first: u8 = 0;
-        first |= @intCast(u8, self.packet_num_len -| 1);
-
-        // Encode short header.
-        if (self.packet_type == .short) {
-            first &= ~form_bit;
-            first |= fixed_bit;
-            if (self.key_phase) {
-                first |= key_phase_bit;
-            } else {
-                first &= ~key_phase_bit;
-            }
-
-            try bs.put(u8, first);
-            try bs.putBytes(self.dcid.items);
-
-            return;
-        }
-
-        // Encode long header.
-        const packet_type: u8  = switch (self.packet_type) {
-            .initial => 0x00,
-            .zero_rtt => 0x01,
-            .handshake => 0x02,
-            .retry => 0x03,
-            else => return error.InvalidPacket,
-        };
-
-        first |= form_bit | fixed_bit | (packet_type << 4);
-        try bs.put(u8, first);
-        try bs.put(u32, self.version);
-        try bs.put(u8, @intCast(u8, self.dcid.items.len));
-        try bs.putBytes(self.dcid.items);
-        try bs.put(u8, @intCast(u8, self.scid.items.len));
-        try bs.putBytes(self.scid.items);
-
-        switch (self.packet_type) {
-            .initial => {
-                if (self.token) |t| {
-                    try bs.putVarInt(@intCast(u64, t.items.len));
-                    try bs.putBytes(t.items);
-                } else {
-                    try bs.putVarInt(0);
-                }
-            },
-            .retry => {
-                try bs.putBytes(self.token.?.items);
-            },
-            else => {},
-        }
+        try self.toBytes(&bs);
     }
 
     fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
@@ -194,6 +144,59 @@ const Header = struct {
             .versions = versions,
             .key_phase = false,
         };
+    }
+
+    fn toBytes(self: Self, bs: *Bytes) !void {
+        var first: u8 = 0;
+        first |= @intCast(u8, self.packet_num_len -| 1);
+
+        // Encode short header.
+        if (self.packet_type == .short) {
+            first &= ~form_bit;
+            first |= fixed_bit;
+            if (self.key_phase) {
+                first |= key_phase_bit;
+            } else {
+                first &= ~key_phase_bit;
+            }
+
+            try bs.put(u8, first);
+            try bs.putBytes(self.dcid.items);
+
+            return;
+        }
+
+        // Encode long header.
+        const packet_type: u8  = switch (self.packet_type) {
+            .initial => 0x00,
+            .zero_rtt => 0x01,
+            .handshake => 0x02,
+            .retry => 0x03,
+            else => return error.InvalidPacket,
+        };
+
+        first |= form_bit | fixed_bit | (packet_type << 4);
+        try bs.put(u8, first);
+        try bs.put(u32, self.version);
+        try bs.put(u8, @intCast(u8, self.dcid.items.len));
+        try bs.putBytes(self.dcid.items);
+        try bs.put(u8, @intCast(u8, self.scid.items.len));
+        try bs.putBytes(self.scid.items);
+
+        switch (self.packet_type) {
+            .initial => {
+                if (self.token) |t| {
+                    try bs.putVarInt(@intCast(u64, t.items.len));
+                    try bs.putBytes(t.items);
+                } else {
+                    try bs.putVarInt(0);
+                }
+            },
+            .retry => {
+                try bs.putBytes(self.token.?.items);
+            },
+            else => {},
+        }
     }
 };
 

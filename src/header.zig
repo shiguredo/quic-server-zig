@@ -204,6 +204,29 @@ fn isLongHeader(b: u8) bool {
     return b & form_bit != 0;
 }
 
+fn assertHeaderEqual(expected: Header, actual: Header) !void {
+    try std.testing.expectEqual(expected.packet_type, actual.packet_type);
+    try std.testing.expectEqual(expected.version, actual.version);
+    try std.testing.expectEqualSlices(u8, expected.dcid.items, actual.dcid.items);
+    try std.testing.expectEqualSlices(u8, expected.scid.items, actual.scid.items);
+    try std.testing.expectEqual(expected.packet_num, actual.packet_num);
+    try std.testing.expectEqual(expected.packet_num_len, actual.packet_num_len);
+
+    if (expected.token) |t| {
+        try std.testing.expectEqualSlices(u8, t.items, actual.token.?.items);
+    } else {
+        try std.testing.expect(actual.token == null);
+    }
+
+    if (expected.versions) |vs| {
+        try std.testing.expectEqualSlices(u32, vs.items, actual.versions.?.items);
+    } else {
+        try std.testing.expect(actual.versions == null);
+    }
+
+    try std.testing.expectEqual(expected.key_phase, actual.key_phase);
+}
+
 test "Initial" {
     const allocator = std.testing.allocator;
 
@@ -241,13 +264,5 @@ test "Initial" {
     const got = try Header.decode(allocator, &d, 9);
     defer got.deinit();
 
-    try std.testing.expectEqual(hdr.packet_type, got.packet_type);
-    try std.testing.expectEqual(hdr.version, got.version);
-    try std.testing.expectEqualSlices(u8, hdr.dcid.items, got.dcid.items);
-    try std.testing.expectEqualSlices(u8, hdr.scid.items, got.scid.items);
-    try std.testing.expectEqual(hdr.packet_num, got.packet_num);
-    try std.testing.expectEqual(hdr.packet_num_len, got.packet_num_len);
-    try std.testing.expectEqualSlices(u8, hdr.token.?.items, got.token.?.items);
-    try std.testing.expectEqual(hdr.versions, got.versions);
-    try std.testing.expectEqual(hdr.key_phase, got.key_phase);
+    try assertHeaderEqual(hdr, got);
 }

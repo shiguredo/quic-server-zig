@@ -15,18 +15,24 @@ pub fn generateServerInitialSecret(out: *[32]u8, client_destination_connection_i
     try hkdfExpandLabel(initial_secret, label, ctx, out);
 }
 
+/// Derives AEAD Key (key) from the given server_initial_secret,
+/// writing the result into `out`.
 pub fn generateAeadKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
     const label = "quic key";
     const ctx = "";
     try hkdfExpandLabel(server_initial_secret, label, ctx, out);
 }
 
+/// Derives Initialization Vector (IV) from the given server_initial_secret,
+/// writing the result into `out`.
 pub fn generateInitializationVector(out: *[12]u8, server_initial_secret: [32]u8) !void {
     const label = "quic iv";
     const ctx = "";
     try hkdfExpandLabel(server_initial_secret, label, ctx, out);
 }
 
+/// Derives Header Protection Key (hp) from the given server_initial_secret,
+/// writing the result into `out`.
 pub fn generateHeaderProtectionKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
     const label = "quic hp";
     const ctx = "";

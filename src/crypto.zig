@@ -4,7 +4,7 @@ const ArrayList = std.ArrayList;
 const HkdfSha256 = std.crypto.kdf.hkdf.HkdfSha256;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 
-/// Calculates server_initial_secret from the given client Destination Connection ID,
+/// Derives server_initial_secret from the given client Destination Connection ID,
 /// writing the result into `out`.
 /// https://www.rfc-editor.org/rfc/rfc9001#name-initial-secrets
 pub fn generateServerInitialSecret(out: *[32]u8, client_destination_connection_id: []const u8) !void {

@@ -21,6 +21,12 @@ pub fn generateAeadKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
     try hkdfExpandLabel(server_initial_secret, label, ctx, out);
 }
 
+pub fn generateInitializationVector(out: *[12]u8, server_initial_secret: [32]u8) !void {
+    const label = "quic iv";
+    const ctx = "";
+    try hkdfExpandLabel(server_initial_secret, label, ctx, out);
+}
+
 const HkdfLabel = struct {
     length: u16,
     label: VariableLengthVector(u8, label_max_length),
@@ -135,6 +141,25 @@ test "AEAD key" {
     const expected = [_]u8{
         0xcf, 0x3a, 0x53, 0x31, 0x65, 0x3c, 0x36, 0x4c,
         0x88, 0xf0, 0xf3, 0x79, 0xb6, 0x06, 0x7e, 0x37,
+    };
+
+    try std.testing.expectEqualSlices(u8, &expected, &out);
+}
+
+test "Initialization Vector (IV)" {
+    // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#section-a.1
+    var out: [12]u8 = undefined;
+    const server_initial_secret = [_]u8{
+        0x3c, 0x19, 0x98, 0x28, 0xfd, 0x13, 0x9e, 0xfd,
+        0x21, 0x6c, 0x15, 0x5a, 0xd8, 0x44, 0xcc, 0x81,
+        0xfb, 0x82, 0xfa, 0x8d, 0x74, 0x46, 0xfa, 0x7d,
+        0x78, 0xbe, 0x80, 0x3a, 0xcd, 0xda, 0x95, 0x1b
+    };
+    try generateInitializationVector(&out, server_initial_secret);
+
+    const expected = [_]u8{
+        0x0a, 0xc1, 0x49, 0x3c, 0xa1, 0x90, 0x58, 0x53,
+        0xb0, 0xbb, 0xa0, 0x3e,
     };
 
     try std.testing.expectEqualSlices(u8, &expected, &out);

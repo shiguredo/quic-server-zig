@@ -55,7 +55,7 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
         }
 
         fn LengthType() type {
-            const types = [_]type { u8, u16, u24, u32 };
+            const types = [_]type{ u8, u16, u24, u32 };
             inline for (types) |ty| {
                 if (maximum_length <= math.maxInt(ty)) {
                     return ty;
@@ -67,14 +67,14 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
 }
 
 test "empty VariableLengthVector properly encoded" {
-    const Opaque = VariableLengthVector(u8, 400); 
+    const Opaque = VariableLengthVector(u8, 400);
     const v = Opaque{ .data = ArrayList(u8).init(std.testing.allocator) };
     defer v.deinit();
     var out: [1024]u8 = undefined;
     const written = try v.encode(&out);
     try std.testing.expectEqual(@as(usize, 2), written);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x00 }, out[0..written]);
- }
+}
 
 test "non-empty VariableLengthVector properly encoded" {
     const Opaque = VariableLengthVector(u8, 255);
@@ -91,4 +91,3 @@ test "non-empty VariableLengthVector properly encoded" {
     try std.testing.expectEqual(@as(usize, 3), written);
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x02, 0x00, 0x01 }, out[0..written]);
 }
-

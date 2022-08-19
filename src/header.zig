@@ -68,7 +68,7 @@ pub const Header = struct {
 
     /// Encodes the header into binary and writes it to `out`.
     pub fn encode(self: Self, out: []u8) !void {
-        var bs = Bytes { .buf = out };
+        var bs = Bytes{ .buf = out };
         try self.toBytes(&bs);
     }
 
@@ -208,7 +208,7 @@ pub const Header = struct {
         }
 
         // Encode long header.
-        const packet_type: u8  = switch (self.packet_type) {
+        const packet_type: u8 = switch (self.packet_type) {
             .initial => 0x00,
             .zero_rtt => 0x01,
             .handshake => 0x02,

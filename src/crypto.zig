@@ -8,7 +8,6 @@ const VariableLengthVector = @import("./variable_length_vector.zig").VariableLen
 /// writing the result into `out`.
 /// https://www.rfc-editor.org/rfc/rfc9001#name-initial-secrets
 pub fn deriveServerInitialSecret(out: *[32]u8, client_destination_connection_id: []const u8) !void {
-
     const initial_secret = deriveCommonInitialSecret(client_destination_connection_id);
     const label = "server in";
     const ctx = "";

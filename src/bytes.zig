@@ -156,7 +156,8 @@ pub fn varIntLength(value: u64) usize {
         @as(usize, 4)
     else if (value <= 4611686018427387903)
         @as(usize, 8)
-    else unreachable;
+    else
+        unreachable;
 }
 
 test "Bytes peek, get" {

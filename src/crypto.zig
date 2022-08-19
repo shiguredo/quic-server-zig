@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const ArrayList = std.ArrayList;
 const HkdfSha256 = std.crypto.kdf.hkdf.HkdfSha256;
+const Aes128 = std.crypto.core.aes.Aes128;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 
 /// Derives server_initial_secret from the given client Destination Connection ID,
@@ -36,6 +37,48 @@ pub fn deriveHeaderProtectionKey(out: *[16]u8, server_initial_secret: [32]u8) !v
     const label = "quic hp";
     const ctx = "";
     try hkdfExpandLabel(server_initial_secret, label, ctx, out);
+}
+
+/// Returns a mask that is used to protect the header.
+/// TODO(magurotuna): add support for ChaCha20-Based header protection
+/// https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
+pub fn getHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: [16]u8) ![5]u8 {
+    var server_initial_secret: [32]u8 = undefined;
+    try deriveServerInitialSecret(&server_initial_secret, client_destination_connection_id);
+    var hp_key: [16]u8 = undefined;
+    try deriveHeaderProtectionKey(&hp_key, server_initial_secret);
+    const ctx = Aes.initEnc(hp_key);
+    var encrypted: [16]u8 = undefined;
+    ctx.encrypt(&encrypted, &sample);
+
+    var ret: [5]u8 = undefined;
+
+    comptime var i = 0;
+    inline while (i < 5) : (i += 1) {
+        ret[i] = encrypted[i];
+    }
+
+    return ret;
+}
+
+test "header protection mask" {
+    // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#name-server-initial
+    const client_dcid = [_]u8{
+        // zig fmt: off
+        0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
+        // zig fmt: on
+    };
+    const sample = [_]u8{
+        // zig fmt: off
+        0x2c, 0xd0, 0x99, 0x1c, 0xd2, 0x5b, 0x0a, 0xac,
+        0x40, 0x6a, 0x58, 0x16, 0xb6, 0x39, 0x41, 0x00,
+        // zig fmt: on
+    };
+    const got = try getHeaderProtectionMask(Aes128, &client_dcid, sample);
+    const expected = [_]u8{
+        0x2e, 0xc0, 0xd8, 0x35, 0x6a,
+    };
+    try std.testing.expectEqualSlices(u8, &expected, &got);
 }
 
 const HkdfLabel = struct {

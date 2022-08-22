@@ -5,7 +5,7 @@ const HkdfSha256 = std.crypto.kdf.hkdf.HkdfSha256;
 const Aes128 = std.crypto.core.aes.Aes128;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 
-const InitialSecretKind = enum {
+const EndpointKind = enum {
     server,
     client,
 };
@@ -24,7 +24,7 @@ pub fn deriveClientInitialSecret(out: *[32]u8, client_destination_connection_id:
     try deriveInitialSecretInner(.client, out, client_destination_connection_id);
 }
 
-fn deriveInitialSecretInner(comptime kind: InitialSecretKind, out: *[32]u8, client_destination_connection_id: []const u8) !void {
+fn deriveInitialSecretInner(comptime kind: EndpointKind, out: *[32]u8, client_destination_connection_id: []const u8) !void {
     const initial_secret = deriveCommonInitialSecret(client_destination_connection_id);
     const label = switch (kind) {
         .server => "server in",

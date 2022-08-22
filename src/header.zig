@@ -22,12 +22,14 @@ pub const Header = struct {
     /// Destination connection ID of the packet.
     /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
     /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
-    /// packets of future versions. So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
+    /// packets of future versions, as explained here: https://www.rfc-editor.org/rfc/rfc9000.html#section-17.2-3.12.1
+    /// So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
     dcid: ArrayList(u8),
     /// Source connection ID of the packet.
     /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
     /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
-    /// packets of future versions. So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
+    /// packets of future versions, as explained here: https://www.rfc-editor.org/rfc/rfc9000.html#section-17.2-3.12.1
+    /// So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
     scid: ArrayList(u8),
     /// Packet number, protected using header protection.
     packet_num: u64,

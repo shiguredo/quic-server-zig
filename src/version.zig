@@ -1,7 +1,8 @@
 const std = @import("std");
 
+pub const quic_v1 = 0x0000_0001;
+
 pub fn isSupported(version: u32) bool {
-    const quic_v1 = 0x0000_0001;
     return version == quic_v1;
 }
 

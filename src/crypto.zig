@@ -58,14 +58,29 @@ pub fn deriveHeaderProtectionKey(out: *[16]u8, server_initial_secret: [32]u8) !v
     try hkdfExpandLabel(server_initial_secret, label, ctx, out);
 }
 
-/// Returns a mask that is used to protect the header.
+/// Returns a mask that is used to protect the header sent from the server.
 /// TODO(magurotuna): add support for ChaCha20-Based header protection
 /// https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
-pub fn getHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
-    var server_initial_secret: [32]u8 = undefined;
-    try deriveServerInitialSecret(&server_initial_secret, client_destination_connection_id);
+pub fn getServerHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
+    return getHeaderProtectionMask(.server, Aes, client_destination_connection_id, sample);
+}
+
+/// Returns a mask that is used to protect the header sent from the client.
+/// TODO(magurotuna): add support for ChaCha20-Based header protection
+/// https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
+pub fn getClientHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
+    return getHeaderProtectionMask(.client, Aes, client_destination_connection_id, sample);
+}
+
+fn getHeaderProtectionMask(comptime kind: EndpointKind, comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
+    var initial_secret: [32]u8 = undefined;
+    switch (kind) {
+        .server => try deriveServerInitialSecret(&initial_secret, client_destination_connection_id),
+        .client => try deriveClientInitialSecret(&initial_secret, client_destination_connection_id),
+    }
+
     var hp_key: [16]u8 = undefined;
-    try deriveHeaderProtectionKey(&hp_key, server_initial_secret);
+    try deriveHeaderProtectionKey(&hp_key, initial_secret);
     const ctx = Aes.initEnc(hp_key);
     var encrypted: [16]u8 = undefined;
     ctx.encrypt(&encrypted, sample);
@@ -80,7 +95,8 @@ pub fn getHeaderProtectionMask(comptime Aes: type, client_destination_connection
     return ret;
 }
 
-test "header protection mask" {
+
+test "server header protection mask" {
     // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#name-server-initial
     const client_dcid = [_]u8{
         // zig fmt: off
@@ -93,9 +109,29 @@ test "header protection mask" {
         0x40, 0x6a, 0x58, 0x16, 0xb6, 0x39, 0x41, 0x00,
         // zig fmt: on
     };
-    const got = try getHeaderProtectionMask(Aes128, &client_dcid, &sample);
+    const got = try getServerHeaderProtectionMask(Aes128, &client_dcid, &sample);
     const expected = [_]u8{
         0x2e, 0xc0, 0xd8, 0x35, 0x6a,
+    };
+    try std.testing.expectEqualSlices(u8, &expected, &got);
+}
+
+test "client header protection mask" {
+    // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#name-client-initial
+    const client_dcid = [_]u8{
+        // zig fmt: off
+        0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
+        // zig fmt: on
+    };
+    const sample = [_]u8{
+        // zig fmt: off
+        0xd1, 0xb1, 0xc9, 0x8d, 0xd7, 0x68, 0x9f, 0xb8,
+        0xec, 0x11, 0xd2, 0x42, 0xb1, 0x23, 0xdc, 0x9b,
+        // zig fmt: on
+    };
+    const got = try getClientHeaderProtectionMask(Aes128, &client_dcid, &sample);
+    const expected = [_]u8{
+        0x43, 0x7b, 0x9a, 0xec, 0x36,
     };
     try std.testing.expectEqualSlices(u8, &expected, &got);
 }

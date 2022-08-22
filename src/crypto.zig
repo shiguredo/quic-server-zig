@@ -42,14 +42,14 @@ pub fn deriveHeaderProtectionKey(out: *[16]u8, server_initial_secret: [32]u8) !v
 /// Returns a mask that is used to protect the header.
 /// TODO(magurotuna): add support for ChaCha20-Based header protection
 /// https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
-pub fn getHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: [16]u8) ![5]u8 {
+pub fn getHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
     var server_initial_secret: [32]u8 = undefined;
     try deriveServerInitialSecret(&server_initial_secret, client_destination_connection_id);
     var hp_key: [16]u8 = undefined;
     try deriveHeaderProtectionKey(&hp_key, server_initial_secret);
     const ctx = Aes.initEnc(hp_key);
     var encrypted: [16]u8 = undefined;
-    ctx.encrypt(&encrypted, &sample);
+    ctx.encrypt(&encrypted, sample);
 
     var ret: [5]u8 = undefined;
 
@@ -74,7 +74,7 @@ test "header protection mask" {
         0x40, 0x6a, 0x58, 0x16, 0xb6, 0x39, 0x41, 0x00,
         // zig fmt: on
     };
-    const got = try getHeaderProtectionMask(Aes128, &client_dcid, sample);
+    const got = try getHeaderProtectionMask(Aes128, &client_dcid, &sample);
     const expected = [_]u8{
         0x2e, 0xc0, 0xd8, 0x35, 0x6a,
     };

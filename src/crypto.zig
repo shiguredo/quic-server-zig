@@ -36,7 +36,7 @@ fn deriveInitialSecretInner(comptime kind: InitialSecretKind, out: *[32]u8, clie
 
 /// Derives AEAD Key (key) from the given server_initial_secret,
 /// writing the result into `out`.
-pub fn deriveAradKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
+pub fn deriveAeadKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
     const label = "quic key";
     const ctx = "";
     try hkdfExpandLabel(server_initial_secret, label, ctx, out);
@@ -314,7 +314,7 @@ test "AEAD key" {
             0x78, 0xbe, 0x80, 0x3a, 0xcd, 0xda, 0x95, 0x1b
             // zig fmt: on
         };
-        try deriveAradKey(&out, server_initial_secret);
+        try deriveAeadKey(&out, server_initial_secret);
 
         const expected = [_]u8{
             // zig fmt: off
@@ -337,7 +337,7 @@ test "AEAD key" {
             0xb3, 0x63, 0x18, 0xd5, 0xa0, 0x3a, 0xfe, 0xb8,
             // zig fmt: on
         };
-        try deriveAradKey(&out, server_initial_secret);
+        try deriveAeadKey(&out, server_initial_secret);
 
         const expected = [_]u8{
             // zig fmt: off

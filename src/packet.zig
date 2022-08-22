@@ -55,11 +55,25 @@ pub const PacketType = enum {
 ///     Packet Payload (8..),      # Encrypted
 /// }
 pub const Initial = struct {
+    /// QUIC version identifier.
     version: u32,
+    /// Destination connection ID of the packet.
+    /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
+    /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
+    /// packets of future versions, as explained here: https://www.rfc-editor.org/rfc/rfc9000.html#section-17.2-3.12.1
+    /// So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
     destination_connection_id: ArrayList(u8),
+    /// Source connection ID of the packet.
+    /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
+    /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
+    /// packets of future versions, as explained here: https://www.rfc-editor.org/rfc/rfc9000.html#section-17.2-3.12.1
+    /// So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
     source_connection_id: ArrayList(u8),
+    /// Address verification token.
     token: ArrayList(u8),
+    /// Packet number.
     packet_number: u32,
+    /// Payload of the packet.
     payload: ArrayList(u8),
 
     const Self = @This();

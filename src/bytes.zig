@@ -48,13 +48,18 @@ pub const Bytes = struct {
     }
 
     pub fn peekBytesOwned(self: Self, allocator: mem.Allocator, size: usize) !ArrayList(u8) {
+        const slice = try self.peekBytes(size);
+        var ret = try ArrayList(u8).initCapacity(allocator, size);
+        ret.appendSliceAssumeCapacity(slice);
+        return ret;
+    }
+
+    pub fn peekBytes(self: Self, size: usize) ![]u8 {
         const rest = self.buf[self.pos..];
         if (rest.len < size)
             return Error.BufferTooShort;
 
-        var ret = try ArrayList(u8).initCapacity(allocator, size);
-        ret.appendSliceAssumeCapacity(rest[0..size]);
-        return ret;
+        return rest[0..size];
     }
 
     pub fn consumeBytesOwned(self: *Self, allocator: mem.Allocator, size: usize) !ArrayList(u8) {

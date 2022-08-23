@@ -175,7 +175,7 @@ test "Bytes peek, get" {
 }
 
 test "Bytes parse variable-length integer" {
-    // test cases are taken from https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
+    // Test cases are taken from https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
     {
         var buf = [_]u8{0x25};
         var b = Bytes{ .buf = &buf };
@@ -244,6 +244,7 @@ test "Bytes putBytes" {
 }
 
 test "Bytes putVarInt" {
+    // Test cases are taken from https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
     {
         var buf: [1]u8 = undefined;
         var b = Bytes{ .buf = &buf };

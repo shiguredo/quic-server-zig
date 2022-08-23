@@ -47,6 +47,8 @@ pub const Bytes = struct {
         return v;
     }
 
+    /// Reads `size` bytes from the current position without advancing the position,
+    /// and returns the bytes as `ArrayList(u8)` so the caller owns it.
     pub fn peekBytesOwned(self: Self, allocator: mem.Allocator, size: usize) !ArrayList(u8) {
         const slice = try self.peekBytes(size);
         var ret = try ArrayList(u8).initCapacity(allocator, size);
@@ -54,6 +56,8 @@ pub const Bytes = struct {
         return ret;
     }
 
+    /// Reads `size` bytes from the current position without advancing the position,
+    /// and returns the bytes as a slice without allocating any additional memory.
     pub fn peekBytes(self: Self, size: usize) ![]u8 {
         const rest = self.buf[self.pos..];
         if (rest.len < size)
@@ -62,6 +66,8 @@ pub const Bytes = struct {
         return rest[0..size];
     }
 
+    /// Reads `size` bytes from the current position, advances the position,
+    /// and returns the bytes as `ArrayList(u8)` so the caller owns it.
     pub fn consumeBytesOwned(self: *Self, allocator: mem.Allocator, size: usize) !ArrayList(u8) {
         const ret = try self.peekBytesOwned(allocator, size);
         self.pos += size;
@@ -99,6 +105,7 @@ pub const Bytes = struct {
         return self.consumeBytesOwned(allocator, @intCast(usize, len));
     }
 
+    /// Writes the given integer into the current position of the buffer, advancing the position.
     pub fn put(self: *Self, comptime T: type, value: T) Error!void {
         if (@typeInfo(T) != .Int)
             @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
@@ -111,6 +118,7 @@ pub const Bytes = struct {
         self.pos += @sizeOf(T);
     }
 
+    /// Writes the given bytes into the current position of the buffer, advancing the position.
     pub fn putBytes(self: *Self, bytes: []const u8) Error!void {
         var rest = self.buf[self.pos..];
         if (rest.len < bytes.len)
@@ -120,6 +128,8 @@ pub const Bytes = struct {
         self.pos += bytes.len;
     }
 
+    /// Writes the given integer as variable-length encoded, into the current position of the buffer,
+    /// advancing the position.
     pub fn putVarInt(self: *Self, value: u64) Error!void {
         const length = varIntLength(value);
 

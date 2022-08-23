@@ -38,6 +38,7 @@ fn deriveInitialSecretInner(comptime kind: EndpointKind, out: *[32]u8, client_de
 
 /// Derives AEAD Key (key) from the given server_initial_secret,
 /// writing the result into `out`.
+/// TODO(magurotuna): it works well for client_initial_secret, so maybe 2nd parameter should be renamed?
 pub fn deriveAeadKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
     const label = "quic key";
     const ctx = "";
@@ -46,6 +47,7 @@ pub fn deriveAeadKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
 
 /// Derives Initialization Vector (IV) from the given server_initial_secret,
 /// writing the result into `out`.
+/// TODO(magurotuna): it works well for client_initial_secret, so maybe 2nd parameter should be renamed?
 pub fn deriveInitializationVector(out: *[12]u8, server_initial_secret: [32]u8) !void {
     const label = "quic iv";
     const ctx = "";

@@ -95,7 +95,6 @@ fn getHeaderProtectionMask(comptime kind: EndpointKind, comptime Aes: type, clie
     return ret;
 }
 
-
 test "server header protection mask" {
     // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#name-server-initial
     const client_dcid = [_]u8{

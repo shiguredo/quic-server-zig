@@ -83,24 +83,24 @@ pub const Initial = struct {
         // Ensure that `bs` has read the first byte (u8) and the version information (u32)
         std.debug.assert(bs.pos == @sizeOf(u8) + @sizeOf(u32));
 
-        const dcid_len = try bs.get(u8);
+        const dcid_len = try bs.consume(u8);
         if (isSupported(version) and dcid_len > max_cid_len)
             return error.InvalidPacket;
 
-        const dcid = try bs.getBytesOwned(allocator, dcid_len);
+        const dcid = try bs.consumeBytesOwned(allocator, dcid_len);
         errdefer dcid.deinit();
 
-        const scid_len = try bs.get(u8);
+        const scid_len = try bs.consume(u8);
         if (isSupported(version) and scid_len > max_cid_len)
             return error.InvalidPacket;
 
-        const scid = try bs.getBytesOwned(allocator, scid_len);
+        const scid = try bs.consumeBytesOwned(allocator, scid_len);
         errdefer scid.deinit();
 
-        const token = try bs.getBytesOwnedWithVarIntLength(allocator);
+        const token = try bs.consumeBytesOwnedWithVarIntLength(allocator);
         errdefer token.deinit();
 
-        const packet_number_and_payload = try bs.getBytesOwnedWithVarIntLength(allocator);
+        const packet_number_and_payload = try bs.consumeBytesOwnedWithVarIntLength(allocator);
         defer packet_number_and_payload.deinit();
 
         // https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-sample
@@ -311,8 +311,8 @@ test "decode Client Initial" {
     };
 
     var bs = Bytes{ .buf = &in };
-    const first = try bs.get(u8);
-    const version = try bs.get(u32);
+    const first = try bs.consume(u8);
+    const version = try bs.consume(u32);
     const got = try Initial.fromBytes(std.testing.allocator, &bs, first, version);
     defer got.deinit();
 
@@ -363,7 +363,7 @@ pub const Packet = union(PacketType) {
     }
 
     fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, destination_connection_id_length: usize) !Self {
-        const first = try bs.get(u8);
+        const first = try bs.consume(u8);
 
         if (!isLongHeader(first)) {
             _ = destination_connection_id_length;
@@ -371,7 +371,7 @@ pub const Packet = union(PacketType) {
             return error.Unimplemented;
         }
 
-        const ver = try bs.get(u32);
+        const ver = try bs.consume(u32);
         const packet_type = if (ver == 0)
             PacketType.version_negotiation
         else switch ((first & packet_type_mask) >> 4) {

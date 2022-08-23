@@ -38,7 +38,7 @@ pub const Bytes = struct {
     /// Reads an integer of type `T` from the current position of the buffer,
     /// assuming it's represented in network byte order.
     /// It DOES advance the position.
-    pub fn get(self: *Self, comptime T: type) Error!T {
+    pub fn consume(self: *Self, comptime T: type) Error!T {
         if (@typeInfo(T) != .Int)
             @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
 
@@ -57,7 +57,7 @@ pub const Bytes = struct {
         return ret;
     }
 
-    pub fn getBytesOwned(self: *Self, allocator: mem.Allocator, size: usize) !ArrayList(u8) {
+    pub fn consumeBytesOwned(self: *Self, allocator: mem.Allocator, size: usize) !ArrayList(u8) {
         const ret = try self.peekBytesOwned(allocator, size);
         self.pos += size;
         return ret;
@@ -65,21 +65,21 @@ pub const Bytes = struct {
 
     /// Reads a variable-length integer from the current positon of the buffer.
     /// https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
-    pub fn getVarInt(self: *Self) Error!u64 {
+    pub fn consumeVarInt(self: *Self) Error!u64 {
         const length = parseVarIntLength(try self.peek(u8));
 
         return switch (length) {
-            1 => @intCast(u64, try self.get(u8)),
+            1 => @intCast(u64, try self.consume(u8)),
             2 => blk: {
-                const v = try self.get(u16);
+                const v = try self.consume(u16);
                 break :blk @intCast(u64, v & 0x3fff);
             },
             4 => blk: {
-                const v = try self.get(u32);
+                const v = try self.consume(u32);
                 break :blk @intCast(u64, v & 0x3fff_ffff);
             },
             8 => blk: {
-                const v = try self.get(u64);
+                const v = try self.consume(u64);
                 break :blk v & 0x3fff_ffff_ffff_ffff;
             },
             else => unreachable,
@@ -89,9 +89,9 @@ pub const Bytes = struct {
     /// First reads a variable-length integer from the current position of the buffer,
     /// and then reads the next N bytes, where N is the value of variable-length integer we just read.
     /// It returns an AraryList composed of those N bytes.
-    pub fn getBytesOwnedWithVarIntLength(self: *Self, allocator: mem.Allocator) !ArrayList(u8) {
-        const len = try self.getVarInt();
-        return self.getBytesOwned(allocator, @intCast(usize, len));
+    pub fn consumeBytesOwnedWithVarIntLength(self: *Self, allocator: mem.Allocator) !ArrayList(u8) {
+        const len = try self.consumeVarInt();
+        return self.consumeBytesOwned(allocator, @intCast(usize, len));
     }
 
     pub fn put(self: *Self, comptime T: type, value: T) Error!void {
@@ -160,18 +160,18 @@ pub fn varIntLength(value: u64) usize {
         unreachable;
 }
 
-test "Bytes peek, get" {
+test "Bytes peek, consume" {
     var buf = [_]u8{ 0x00, 0x01, 0x02 };
 
     var b = Bytes{ .buf = &buf };
 
     try std.testing.expectEqual(@as(u8, 0), try b.peek(u8));
-    try std.testing.expectEqual(@as(u8, 0), try b.get(u8));
+    try std.testing.expectEqual(@as(u8, 0), try b.consume(u8));
     try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.peek(u16));
-    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.get(u16));
+    try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.consume(u16));
 
     try std.testing.expectError(error.BufferTooShort, b.peek(u8));
-    try std.testing.expectError(error.BufferTooShort, b.get(u8));
+    try std.testing.expectError(error.BufferTooShort, b.consume(u8));
 }
 
 test "Bytes parse variable-length integer" {
@@ -179,39 +179,39 @@ test "Bytes parse variable-length integer" {
     {
         var buf = [_]u8{0x25};
         var b = Bytes{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 37), try b.getVarInt());
+        try std.testing.expectEqual(@as(u64, 37), try b.consumeVarInt());
     }
 
     {
         var buf = [_]u8{ 0x40, 0x25 };
         var b = Bytes{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 37), try b.getVarInt());
+        try std.testing.expectEqual(@as(u64, 37), try b.consumeVarInt());
     }
 
     {
         var buf = [_]u8{ 0x7b, 0xbd };
         var b = Bytes{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 15293), try b.getVarInt());
+        try std.testing.expectEqual(@as(u64, 15293), try b.consumeVarInt());
     }
 
     {
         var buf = [_]u8{ 0x9d, 0x7f, 0x3e, 0x7d };
         var b = Bytes{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 494878333), try b.getVarInt());
+        try std.testing.expectEqual(@as(u64, 494878333), try b.consumeVarInt());
     }
 
     {
         var buf = [_]u8{ 0xc2, 0x19, 0x7c, 0x5e, 0xff, 0x14, 0xe8, 0x8c };
         var b = Bytes{ .buf = &buf };
-        try std.testing.expectEqual(@as(u64, 151288809941952652), try b.getVarInt());
+        try std.testing.expectEqual(@as(u64, 151288809941952652), try b.consumeVarInt());
     }
 }
 
-test "Bytes getBytesOwnedWithVarIntLength" {
+test "Bytes consumeBytesOwnedWithVarIntLength" {
     {
         var buf = [_]u8{ 0b00_000001, 0x42 };
         var b = Bytes{ .buf = &buf };
-        const got = try b.getBytesOwnedWithVarIntLength(std.testing.allocator);
+        const got = try b.consumeBytesOwnedWithVarIntLength(std.testing.allocator);
         defer got.deinit();
         try std.testing.expectEqualSlices(u8, buf[1..2], got.items);
     }
@@ -219,7 +219,7 @@ test "Bytes getBytesOwnedWithVarIntLength" {
     {
         var buf = [_]u8{ 0b00_000001, 0x42, 0x99 };
         var b = Bytes{ .buf = &buf };
-        const got = try b.getBytesOwnedWithVarIntLength(std.testing.allocator);
+        const got = try b.consumeBytesOwnedWithVarIntLength(std.testing.allocator);
         defer got.deinit();
         try std.testing.expectEqualSlices(u8, buf[1..2], got.items);
     }

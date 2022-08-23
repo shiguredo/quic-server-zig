@@ -103,10 +103,10 @@ pub const Header = struct {
     }
 
     fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
-        const first = try bs.get(u8);
+        const first = try bs.consume(u8);
 
         if (!isLongHeader(first)) {
-            const dcid = try bs.getBytesOwned(allocator, dcid_len);
+            const dcid = try bs.consumeBytesOwned(allocator, dcid_len);
 
             return Self{
                 .packet_type = .short,
@@ -121,7 +121,7 @@ pub const Header = struct {
             };
         }
 
-        const ver = try bs.get(u32);
+        const ver = try bs.consume(u32);
         const packet_type = if (ver == 0)
             PacketType.version_negotiation
         else switch ((first & packet_type_mask) >> 4) {
@@ -132,18 +132,18 @@ pub const Header = struct {
             else => return DecodeError.InvalidPacket,
         };
 
-        const decoded_dcid_len = try bs.get(u8);
+        const decoded_dcid_len = try bs.consume(u8);
         if (version.isSupported(ver) and decoded_dcid_len > max_cid_len)
             return DecodeError.InvalidPacket;
 
-        const dcid = try bs.getBytesOwned(allocator, decoded_dcid_len);
+        const dcid = try bs.consumeBytesOwned(allocator, decoded_dcid_len);
         errdefer dcid.deinit();
 
-        const scid_len = try bs.get(u8);
+        const scid_len = try bs.consume(u8);
         if (version.isSupported(ver) and scid_len > max_cid_len)
             return DecodeError.InvalidPacket;
 
-        const scid = try bs.getBytesOwned(allocator, scid_len);
+        const scid = try bs.consumeBytesOwned(allocator, scid_len);
         errdefer scid.deinit();
 
         var token: ?ArrayList(u8) = null;
@@ -151,7 +151,7 @@ pub const Header = struct {
 
         switch (packet_type) {
             .initial => {
-                token = try bs.getBytesOwnedWithVarIntLength(allocator);
+                token = try bs.consumeBytesOwnedWithVarIntLength(allocator);
             },
             .retry => {
                 // https://datatracker.ietf.org/doc/html/rfc9000#section-17.2.5
@@ -160,14 +160,14 @@ pub const Header = struct {
                     return DecodeError.InvalidPacket;
 
                 const token_len = bs.remainingCapacity() - retry_integrity_tag_len;
-                token = try bs.getBytesOwned(allocator, token_len);
+                token = try bs.consumeBytesOwned(allocator, token_len);
             },
             .version_negotiation => {
                 var vs = ArrayList(u32).init(allocator);
                 errdefer vs.deinit();
 
                 while (bs.remainingCapacity() > 0) {
-                    const v = try bs.get(u32);
+                    const v = try bs.consume(u32);
                     try vs.append(v);
                 }
 

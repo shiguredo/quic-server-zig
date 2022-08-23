@@ -1,5 +1,7 @@
 # quic-server-zig
 
+![CI status](https://github.com/shiguredo/quic-server-zig/actions/workflows/ci.yml/badge.svg)
+
 This repository is an experimental implementation and is not intended for production use.
 
 ## LICENSE

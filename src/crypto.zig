@@ -1,8 +1,10 @@
 const std = @import("std");
 const mem = std.mem;
+const crypto = std.crypto;
 const ArrayList = std.ArrayList;
-const HkdfSha256 = std.crypto.kdf.hkdf.HkdfSha256;
-const Aes128 = std.crypto.core.aes.Aes128;
+const HkdfSha256 = crypto.kdf.hkdf.HkdfSha256;
+const Aes128 = crypto.core.aes.Aes128;
+const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 
 const EndpointKind = enum {

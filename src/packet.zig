@@ -121,11 +121,27 @@ pub const Initial = struct {
         };
 
         const payload = blk: {
-            // TODO(magurotuna): decrypt payload
-            const p = packet_number_and_payload.items[packet_number_length..];
-            var ret = try ArrayList(u8).initCapacity(allocator, p.len);
-            ret.appendSliceAssumeCapacity(p);
-            break :blk ret;
+            const encrypted_payload = packet_number_and_payload.items[packet_number_length..];
+
+            const unprotected_header = hdr: {
+                // Set unprotected first byte
+                const h = bs.buf[0..(bs.buf.len - encrypted_payload.len)];
+                h[0] = unprotected_first;
+
+                // Set unprotected Packet Number field.
+                // First we encode the raw (unprotected) packet number as a big-endian u32 value,
+                // then mutate the Packet Number space with the subarray of the encoded packet number,
+                // whose length is equal to `packet_number_length`.
+                var pn_big_endian: [4]u8 = undefined;
+                mem.writeIntBig(u32, &pn_big_endian, packet_number);
+                const sub = pn_big_endian[(pn_big_endian.len - packet_number_length)..];
+                var packet_number_space = h[(h.len - packet_number_length)..];
+                mem.copy(u8, packet_number_space, sub);
+
+                break :hdr h;
+            };
+
+            break :blk try crypto.decryptPayload(allocator, encrypted_payload, unprotected_header, packet_number, dcid.items);
         };
         errdefer payload.deinit();
 
@@ -329,9 +345,59 @@ test "decode Client Initial" {
     try std.testing.expectEqual(@as(usize, 0), got.source_connection_id.items.len);
     try std.testing.expectEqual(@as(usize, 0), got.token.items.len);
     try std.testing.expectEqual(@as(u32, 2), got.packet_number);
-    try std.testing.expectEqual(@as(usize, 1178), got.payload.items.len);
+    try std.testing.expectEqual(@as(usize, 1162), got.payload.items.len);
 
-    // TODO(magurotuna): add assertions to check decrypted payload
+    // See if the payload part is correctly decoded.
+    const expected_payload = blk: {
+        // Copied from https://www.rfc-editor.org/rfc/rfc9001#name-client-initial
+        // zig fmt: off
+        const crypto_frame = [_]u8{
+            0x06, 0x00, 0x40, 0xf1, 0x01, 0x00, 0x00, 0xed,
+            0x03, 0x03, 0xeb, 0xf8, 0xfa, 0x56, 0xf1, 0x29,
+            0x39, 0xb9, 0x58, 0x4a, 0x38, 0x96, 0x47, 0x2e,
+            0xc4, 0x0b, 0xb8, 0x63, 0xcf, 0xd3, 0xe8, 0x68,
+            0x04, 0xfe, 0x3a, 0x47, 0xf0, 0x6a, 0x2b, 0x69,
+            0x48, 0x4c, 0x00, 0x00, 0x04, 0x13, 0x01, 0x13,
+            0x02, 0x01, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00,
+            0x10, 0x00, 0x0e, 0x00, 0x00, 0x0b, 0x65, 0x78,
+            0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f,
+            0x6d, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a,
+            0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17,
+            0x00, 0x18, 0x00, 0x10, 0x00, 0x07, 0x00, 0x05,
+            0x04, 0x61, 0x6c, 0x70, 0x6e, 0x00, 0x05, 0x00,
+            0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x33,
+            0x00, 0x26, 0x00, 0x24, 0x00, 0x1d, 0x00, 0x20,
+            0x93, 0x70, 0xb2, 0xc9, 0xca, 0xa4, 0x7f, 0xba,
+            0xba, 0xf4, 0x55, 0x9f, 0xed, 0xba, 0x75, 0x3d,
+            0xe1, 0x71, 0xfa, 0x71, 0xf5, 0x0f, 0x1c, 0xe1,
+            0x5d, 0x43, 0xe9, 0x94, 0xec, 0x74, 0xd7, 0x48,
+            0x00, 0x2b, 0x00, 0x03, 0x02, 0x03, 0x04, 0x00,
+            0x0d, 0x00, 0x10, 0x00, 0x0e, 0x04, 0x03, 0x05,
+            0x03, 0x06, 0x03, 0x02, 0x03, 0x08, 0x04, 0x08,
+            0x05, 0x08, 0x06, 0x00, 0x2d, 0x00, 0x02, 0x01,
+            0x01, 0x00, 0x1c, 0x00, 0x02, 0x40, 0x01, 0x00,
+            0x39, 0x00, 0x32, 0x04, 0x08, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0x05, 0x04, 0x80,
+            0x00, 0xff, 0xff, 0x07, 0x04, 0x80, 0x00, 0xff,
+            0xff, 0x08, 0x01, 0x10, 0x01, 0x04, 0x80, 0x00,
+            0x75, 0x30, 0x09, 0x01, 0x10, 0x0f, 0x08, 0x83,
+            0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08, 0x06,
+            0x04, 0x80, 0x00, 0xff, 0xff,
+        };
+        // zig fmt: on
+
+        // PADDING frames are added to make the packet reach 1200 bytes, since clients MUST ensure that
+        // UDP datagrams containing Initial packets have UDP payloads of at least 1200 bytes.
+        // Note that `1162` is `1200 - header_size (22 bytes, in this case) - authentication_tag_size (16 bytes)`.
+        //
+        // https://www.rfc-editor.org/rfc/rfc9000.html#name-address-validation-during-c
+        // https://www.rfc-editor.org/rfc/rfc9001#name-client-initial
+        const padding_frames = [_]u8{0x00} ** (1162 - crypto_frame.len);
+
+        break :blk crypto_frame ++ padding_frames;
+    };
+
+    try std.testing.expectEqualSlices(u8, &expected_payload, got.payload.items);
 }
 
 // TODO(magurotuna)

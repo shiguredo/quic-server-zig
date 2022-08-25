@@ -1,7 +1,7 @@
 const std = @import("std");
 const net = std.net;
 const UdpSocket = @import("./udp.zig").UdpSocket;
-const Header = @import("./header.zig").Header;
+const Packet = @import("./packet.zig").Packet;
 
 pub fn main() !void {
     const addr = try net.Address.parseIp4("127.0.0.1", 5555);
@@ -14,16 +14,18 @@ pub fn main() !void {
 
     while (true) {
         const recv = try sock.recvFrom(&buf);
-        std.log.info("read {} bytes from {}. received data: {}\n", .{
+        std.log.info("read {} bytes from {}. received data:\n{}\n", .{
             recv.num_bytes,
             recv.src,
             std.fmt.fmtSliceHexLower(buf[0..recv.num_bytes]),
         });
 
-        const decoded = try Header.decode(allocator, &buf, 9);
+        // TODO(magurotuna): set correct value
+        const dummy_dcid_len = 9;
+        const decoded = try Packet.decode(allocator, buf[0..recv.num_bytes], dummy_dcid_len);
         defer decoded.deinit();
 
-        std.log.info("received header:\n{}\n", .{decoded});
+        std.log.info("received packet:\n{}\n", .{decoded});
     }
 }
 

@@ -238,7 +238,7 @@ pub fn decryptPayload(allocator: mem.Allocator, encrypted_payload: []const u8, u
         var pn: [iv_length]u8 = undefined;
         mem.writeIntSliceBig(u32, &pn, packet_number);
         var n: [Aes128Gcm.nonce_length]u8 = undefined;
-        inline for (n) |_, i| {
+        for (n) |_, i| {
             n[i] = pn[i] ^ iv[i];
         }
 

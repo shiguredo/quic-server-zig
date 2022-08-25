@@ -14,6 +14,10 @@ pub fn build(b: *std.build.Builder) void {
     const exe = b.addExecutable("quic-server-zig", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.addLibraryPath("/opt/homebrew/opt/openssl@3/lib");
+    exe.linkSystemLibrary("ssl");
+    exe.linkSystemLibrary("crypto");
+    exe.addSystemIncludePath("/opt/homebrew/opt/openssl@3/include");
     exe.install();
 
     const run_cmd = exe.run();

@@ -2,12 +2,8 @@ const std = @import("std");
 const net = std.net;
 const UdpSocket = @import("./udp.zig").UdpSocket;
 const Packet = @import("./packet.zig").Packet;
-const openssl = @cImport({
-    @cInclude("openssl/ssl.h");
-});
 
 pub fn main() !void {
-    std.debug.print("SSL_MAX_PIPELINES: {}\n", .{openssl.SSL_MAX_PIPELINES});
     const addr = try net.Address.parseIp4("127.0.0.1", 5555);
     const sock = try UdpSocket.bind(addr);
     defer sock.deinit();

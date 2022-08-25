@@ -4,7 +4,6 @@ const crypto = std.crypto;
 const ArrayList = std.ArrayList;
 const HkdfSha256 = crypto.kdf.hkdf.HkdfSha256;
 const Aes128 = crypto.core.aes.Aes128;
-const openssl = @import("./openssl.zig");
 const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 
@@ -255,8 +254,7 @@ pub fn decryptPayload(allocator: mem.Allocator, encrypted_payload: []const u8, u
     const decrypted_payload = blk: {
         const out = try allocator.alloc(u8, encrypted_payload_without_tag.len);
         errdefer allocator.free(out);
-        // try Aes128Gcm.decrypt(out, encrypted_payload_without_tag, tag, unprotected_header, nonce, key);
-        try openssl.decryptAes128Gcm(out, encrypted_payload_without_tag, tag, unprotected_header, nonce, key);
+        try Aes128Gcm.decrypt(out, encrypted_payload_without_tag, tag, unprotected_header, nonce, key);
         break :blk ArrayList(u8).fromOwnedSlice(allocator, out);
     };
     errdefer decrypted_payload.deinit();

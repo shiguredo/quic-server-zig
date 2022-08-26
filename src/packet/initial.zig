@@ -92,7 +92,12 @@ pub const Initial = struct {
         const sample = packet_number_and_payload.items[4..(4 + sample_length)];
 
         const mask = try crypto.getClientHeaderProtectionMask(Aes128, dcid.items, sample);
-        const unprotected_first = first_byte ^ (mask[0] & 0x1f);
+        // https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-applicati
+        //
+        // # Long header: 4 bits masked
+        // packet[0] ^= mask[0] & 0x0f
+        const unprotected_first = first_byte ^ (mask[0] & 0x0f);
+
         const packet_number_length = (unprotected_first & 0x03) + 1;
         log.debug("packet number length: {}\n", .{packet_number_length});
 

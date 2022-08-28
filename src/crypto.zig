@@ -6,6 +6,7 @@ const HkdfSha256 = crypto.kdf.hkdf.HkdfSha256;
 const Aes128 = crypto.core.aes.Aes128;
 const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
+const Bytes = @import("./bytes.zig").Bytes;
 
 const EndpointKind = enum {
     server,
@@ -152,15 +153,21 @@ const HkdfLabel = struct {
     const label_max_length = 255;
     const ctx_max_length = 255;
 
-    fn encode(self: Self, out: []u8) !usize {
-        var pos: usize = 0;
-        mem.writeIntBig(u16, out[0..@sizeOf(u16)], self.length);
-        pos += @sizeOf(u16);
+    fn encodedLength(self: Self) usize {
+        var len: usize = 0;
+        for (@typeInfo(Self).Struct.fields) |field| {
+            len += if (@typeInfo(field.field_type) == .Int)
+                @sizeOf(field.field_type)
+            else
+                @field(self, field.name).encodedLength();
+        }
+        return len;
+    }
 
-        pos += try self.label.encode(out[pos..]);
-        pos += try self.context.encode(out[pos..]);
-
-        return pos;
+    fn encode(self: Self, out: *Bytes) !void {
+        try out.put(u16, self.length);
+        try self.label.encode(out);
+        try self.context.encode(out);
     }
 };
 
@@ -193,9 +200,10 @@ fn hkdfExpandLabel(secret: [32]u8, label: []const u8, ctx: []const u8, out: []u8
 
     // TODO(magurotuna): consider more appropriate array size
     var encoded_label: [4096]u8 = undefined;
-    const encoded_label_size = try hkdfLabel.encode(&encoded_label);
+    var bs = Bytes{ .buf = &encoded_label };
+    try hkdfLabel.encode(&bs);
 
-    HkdfSha256.expand(out, encoded_label[0..encoded_label_size], secret);
+    HkdfSha256.expand(out, bs.split().former.buf, secret);
 }
 
 fn deriveCommonInitialSecret(client_destination_connection_id: []const u8) [32]u8 {

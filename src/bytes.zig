@@ -145,6 +145,19 @@ pub const Bytes = struct {
             else => unreachable,
         }
     }
+
+    pub const Split = struct {
+        former: Bytes,
+        latter: Bytes,
+    };
+
+    /// Creates two new Bytes by splitting the internal buffer at the current position.
+    pub fn split(self: Self) Split {
+        return .{
+            .former = .{ .buf = self.buf[0..self.pos] },
+            .latter = .{ .buf = self.buf[self.pos..] },
+        };
+    }
 };
 
 /// Given the first byte, parses the length of variable-length integer,

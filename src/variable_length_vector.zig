@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const math = std.math;
 const ArrayList = std.ArrayList;
+const Bytes = @import("./bytes.zig").Bytes;
 
 pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) type {
     return struct {
@@ -9,59 +10,67 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
 
         const Self = @This();
 
-        pub fn encode(self: Self, out: []u8) !usize {
-            const LenType = comptime LengthType();
-            const data_encode_size = blk: {
-                var size: usize = 0;
-                for (self.data.items) |item| {
-                    // TODO(magurotuna): handle primitive types other than .Int
-                    size += comptime if (@typeInfo(T) == .Int)
-                        @sizeOf(T)
-                    else
-                        item.encode_size();
+        const LengthType = blk: {
+            const types = [_]type{ u8, u16, u24, u32 };
+            inline for (types) |ty| {
+                if (maximum_length <= math.maxInt(ty)) {
+                    break :blk ty;
                 }
-                break :blk size;
-            };
-            if (out.len < @sizeOf(LenType) + data_encode_size)
-                return error.BufferTooShort;
+            }
+            @compileError("failed to get the type of length");
+        };
 
-            var pos: usize = 0;
+        pub fn encodedLength(self: Self) usize {
+            var len: usize = 0;
+            len += @sizeOf(LengthType);
+            for (self.data.items) |item| {
+                // TODO(magurotuna): handle primitive types other than .Int
+                len += comptime if (@typeInfo(T) == .Int)
+                    @sizeOf(T)
+                else
+                    item.encodedLength();
+            }
+            return len;
+        }
 
-            mem.writeIntBig(LenType, out[0..@sizeOf(LenType)], @intCast(LenType, self.data.items.len));
-            pos += @sizeOf(LenType);
+        pub fn encode(self: Self, out: *Bytes) !void {
+            try out.put(LengthType, @intCast(LengthType, self.data.items.len));
 
             for (self.data.items) |item| {
                 // TODO(magurotuna): handle primitive types other than .Int
                 if (@typeInfo(T) == .Int) {
-                    mem.writeIntSliceBig(T, out[pos..(pos + @sizeOf(T))], item);
-                    pos += @sizeOf(T);
+                    try out.put(T, item);
                 } else {
-                    pos += try item.encode(out[pos..]);
+                    try item.encode(out);
                 }
             }
-
-            return pos;
         }
 
-        pub fn decode(allocator: std.mem.Allocator) !Self {
-            // TODO(magurotuna): implement
+        pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
+            const len = try in.consume(LengthType);
+            var data = try ArrayList(T).initCapacity(@intCast(usize, len));
+            errdefer data.deinit();
+
+            var i: usize = 0;
+            while (i < len) : (i += 1) {
+                // TODO(magurotuna): handle primitive types other than .Int
+                const item = comptime if (@typeInfo(T) == .Int)
+                    try in.consume(T)
+                else
+                    try T.decode(allocator, in);
+
+                // `data` must have enough space to accomodate `len` items since we create via `initCapacity`,
+                // thus `appendAssumeCapacity` is safe here.
+                data.appendAssumeCapacity(item);
+            }
+
             return Self{
-                .data = ArrayList(T).init(allocator),
+                .data = data,
             };
         }
 
         pub fn deinit(self: Self) void {
             self.data.deinit();
-        }
-
-        fn LengthType() type {
-            const types = [_]type{ u8, u16, u24, u32 };
-            inline for (types) |ty| {
-                if (maximum_length <= math.maxInt(ty)) {
-                    return ty;
-                }
-            }
-            @compileError("failed to get the type of length");
         }
     };
 }
@@ -70,10 +79,11 @@ test "empty VariableLengthVector properly encoded" {
     const Opaque = VariableLengthVector(u8, 400);
     const v = Opaque{ .data = ArrayList(u8).init(std.testing.allocator) };
     defer v.deinit();
-    var out: [1024]u8 = undefined;
-    const written = try v.encode(&out);
-    try std.testing.expectEqual(@as(usize, 2), written);
-    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x00 }, out[0..written]);
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+    try v.encode(&out);
+    try std.testing.expectEqual(@as(usize, 2), out.pos);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x00 }, out.split().former.buf);
 }
 
 test "non-empty VariableLengthVector properly encoded" {
@@ -86,8 +96,9 @@ test "non-empty VariableLengthVector properly encoded" {
     };
     const v = Opaque{ .data = data };
     defer v.deinit();
-    var out: [1024]u8 = undefined;
-    const written = try v.encode(&out);
-    try std.testing.expectEqual(@as(usize, 3), written);
-    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x02, 0x00, 0x01 }, out[0..written]);
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+    try v.encode(&out);
+    try std.testing.expectEqual(@as(usize, 3), out.pos);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x02, 0x00, 0x01 }, out.split().former.buf);
 }

@@ -74,6 +74,14 @@ pub const Bytes = struct {
         return ret;
     }
 
+    /// Reads `size` bytes from the current position, advances the position,
+    /// and returns the bytes as a slice without allocating any additional memory.
+    pub fn consumeBytes(self: *Self, size: usize) ![]u8 {
+        const ret = try self.peekBytes(size);
+        self.pos += size;
+        return ret;
+    }
+
     /// Reads a variable-length integer from the current positon of the buffer.
     /// https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
     pub fn consumeVarInt(self: *Self) Error!u64 {
@@ -200,6 +208,16 @@ test "Bytes peek, consume" {
 
     try std.testing.expectError(error.BufferTooShort, b.peek(u8));
     try std.testing.expectError(error.BufferTooShort, b.consume(u8));
+}
+
+test "consumeBytes" {
+    var buf = [_]u8{ 0x00, 0x01, 0x02 };
+
+    var b = Bytes{ .buf = &buf };
+
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01 }, try b.consumeBytes(2));
+    try std.testing.expectEqualSlices(u8, &[_]u8{0x02}, try b.consumeBytes(1));
+    try std.testing.expectError(error.BufferTooShort, b.consumeBytes(1));
 }
 
 test "Bytes parse variable-length integer" {

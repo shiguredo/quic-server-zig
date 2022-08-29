@@ -94,3 +94,28 @@ pub const ExtensionType = enum(u16) {
         _ = self;
     }
 };
+
+test "encode ExtensionType" {
+    const ty = ExtensionType.heartbeat;
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+    try ty.encode(&out);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x0f }, out.split().former.buf);
+}
+
+test "decode ExtensionType" {
+    {
+        var buf = [_]u8{ 0x00, 0x0f };
+        var in = Bytes{ .buf = &buf };
+        const got = try ExtensionType.decode(std.testing.allocator, &in);
+        defer got.deinit();
+        try std.testing.expectEqual(ExtensionType.heartbeat, got);
+    }
+
+    {
+        // unknown extension type
+        var buf = [_]u8{ 0xff, 0xff };
+        var in = Bytes{ .buf = &buf };
+        try std.testing.expectError(error.InvalidEnumTag, ExtensionType.decode(std.testing.allocator, &in));
+    }
+}

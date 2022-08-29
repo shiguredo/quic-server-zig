@@ -25,7 +25,7 @@ pub const Extension = struct {
 
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         const ty = try ExtensionType.decode(allocator, in);
-        const data = try ExtensionData.decode(alloctor, in);
+        const data = try ExtensionData.decode(allocator, in);
         return Self{
             .extension_type = ty,
             .extension_data = data,

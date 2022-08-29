@@ -1,4 +1,5 @@
 const std = @import("std");
+const meta = std.meta;
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../bytes.zig").Bytes;
 
@@ -85,7 +86,7 @@ pub const ExtensionType = enum(u16) {
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         _ = allocator;
         const val = try in.consume(TagType);
-        return @intToEnum(Self, val);
+        return meta.intToEnum(Self, val);
     }
 
     pub fn deinit(self: Self) void {

@@ -42,6 +42,38 @@ pub const Extension = struct {
     }
 };
 
+test "encode Extension" {
+    const ext = Extension{
+        .extension_type = .padding,
+        .extension_data = blk: {
+            var d = std.ArrayList(u8).init(std.testing.allocator);
+            errdefer d.deinit();
+            try d.append(0x01);
+            try d.append(0x02);
+            try d.append(0x03);
+            break :blk .{ .data = d };
+        },
+    };
+    defer ext.deinit();
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+
+    try ext.encode(&out);
+
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x15, 0x00, 0x03, 0x01, 0x02, 0x03 }, out.split().former.buf);
+}
+
+test "decode Extension" {
+    var buf = [_]u8{ 0x00, 0x2b, 0x00, 0x03, 0x02, 0x03, 0x04 };
+    var in = Bytes{ .buf = &buf };
+
+    const got = try Extension.decode(std.testing.allocator, &in);
+    defer got.deinit();
+
+    try std.testing.expectEqual(ExtensionType.supported_versions, got.extension_type);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x02, 0x03, 0x04 }, got.extension_data.data.items);
+}
+
 pub const ExtensionType = enum(u16) {
     // zig fmt: off
     server_name = 0,                             // RFC 6066

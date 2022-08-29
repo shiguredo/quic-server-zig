@@ -19,7 +19,7 @@ pub const Extension = struct {
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {
-        for (@typeInfo(Self).Struct.fields) |field| {
+        inline for (@typeInfo(Self).Struct.fields) |field| {
             try @field(self, field.name).encode(out);
         }
     }

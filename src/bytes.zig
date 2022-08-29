@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const ArrayList = std.ArrayList;
+const utils = @import("./utils.zig");
 
 /// A wrapper around a binary slice, providing several operations useful for reading and manipulating it.
 /// Note that this struct does NOT copy the given binary slice, but just references it.
@@ -29,10 +30,10 @@ pub const Bytes = struct {
             @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
 
         const rest = self.buf[self.pos..];
-        if (rest.len < @sizeOf(T))
+        if (rest.len < utils.sizeOf(T))
             return Error.BufferTooShort;
 
-        return mem.readIntBig(T, rest[0..@sizeOf(T)]);
+        return mem.readIntBig(T, rest[0..utils.sizeOf(T)]);
     }
 
     /// Reads an integer of type `T` from the current position of the buffer,
@@ -43,7 +44,7 @@ pub const Bytes = struct {
             @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
 
         const v = try self.peek(T);
-        self.pos += @sizeOf(T);
+        self.pos += utils.sizeOf(T);
         return v;
     }
 
@@ -119,11 +120,11 @@ pub const Bytes = struct {
             @compileError("type `T` must be of integer, but got `" ++ @typeName(T) ++ "`");
 
         var rest = self.buf[self.pos..];
-        if (rest.len < @sizeOf(T))
+        if (rest.len < utils.sizeOf(T))
             return Error.BufferTooShort;
 
-        mem.writeIntBig(T, rest[0..@sizeOf(T)], value);
-        self.pos += @sizeOf(T);
+        mem.writeIntBig(T, rest[0..utils.sizeOf(T)], value);
+        self.pos += utils.sizeOf(T);
     }
 
     /// Writes the given bytes into the current position of the buffer, advancing the position.

@@ -94,3 +94,36 @@ test "declarations" {
         try std.testing.expect(decls == null);
     }
 }
+
+pub fn hasDeinit(comptime T: type) bool {
+    if (comptime declarations(T)) |decls| {
+        inline for (decls) |decl| {
+            if (comptime mem.eql(u8, decl.name, "deinit")) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+test "hasDeinit" {
+    try std.testing.expect(!hasDeinit(u8));
+    try std.testing.expect(!hasDeinit([4]u8));
+    try std.testing.expect(!hasDeinit(bool));
+    try std.testing.expect(!hasDeinit([]u8));
+    try std.testing.expect(!hasDeinit(struct {}));
+    try std.testing.expect(!hasDeinit(enum {}));
+    try std.testing.expect(!hasDeinit(union {}));
+
+    try std.testing.expect(hasDeinit(struct {
+        fn deinit() void {}
+    }));
+    try std.testing.expect(hasDeinit(enum {
+        fn deinit() void {}
+    }));
+    try std.testing.expect(hasDeinit(union {
+        fn deinit() void {}
+    }));
+    try std.testing.expect(hasDeinit(std.ArrayList(u8)));
+}

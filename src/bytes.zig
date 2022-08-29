@@ -83,27 +83,38 @@ pub const Bytes = struct {
         return ret;
     }
 
-    /// Reads a variable-length integer from the current positon of the buffer.
+    /// Reads a variable-length integer from the current positon of the buffer,
+    /// without advancing the position.
     /// https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
-    pub fn consumeVarInt(self: *Self) Error!u64 {
+    pub fn peekVarInt(self: Self) Error!u64 {
         const length = parseVarIntLength(try self.peek(u8));
 
         return switch (length) {
-            1 => @intCast(u64, try self.consume(u8)),
+            1 => @intCast(u64, try self.peek(u8)),
             2 => blk: {
-                const v = try self.consume(u16);
+                const v = try self.peek(u16);
                 break :blk @intCast(u64, v & 0x3fff);
             },
             4 => blk: {
-                const v = try self.consume(u32);
+                const v = try self.peek(u32);
                 break :blk @intCast(u64, v & 0x3fff_ffff);
             },
             8 => blk: {
-                const v = try self.consume(u64);
+                const v = try self.peek(u64);
                 break :blk v & 0x3fff_ffff_ffff_ffff;
             },
             else => unreachable,
         };
+    }
+
+    /// Reads a variable-length integer from the current positon of the buffer,
+    /// and advances the position.
+    /// https://datatracker.ietf.org/doc/html/rfc9000#appendix-A.1
+    pub fn consumeVarInt(self: *Self) Error!u64 {
+        const length = parseVarIntLength(try self.peek(u8));
+        const ret = try self.peekVarInt();
+        self.pos += length;
+        return ret;
     }
 
     /// First reads a variable-length integer from the current position of the buffer,

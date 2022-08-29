@@ -67,6 +67,7 @@ pub const ExtensionType = enum(u16) {
     post_handshake_auth = 49,                    // RFC 8446
     signature_algorithms_cert = 50,              // RFC 8446
     key_share = 51,                              // RFC 8446
+    quic_transport_parameters = 57,              // RFC 9000, 9001
     // zig fmt: on
 
     const Self = @This();

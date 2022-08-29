@@ -25,7 +25,11 @@ pub const Extension = struct {
 
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         const ty = try ExtensionType.decode(allocator, in);
+        errdefer ty.deinit();
+
         const data = try ExtensionData.decode(allocator, in);
+        errdefer data.deinit();
+
         return Self{
             .extension_type = ty,
             .extension_data = data,
@@ -81,5 +85,10 @@ pub const ExtensionType = enum(u16) {
         _ = allocator;
         const val = try in.consume(TagType);
         return @intToEnum(Self, val);
+    }
+
+    pub fn deinit(self: Self) void {
+        // no-op
+        _ = self;
     }
 };

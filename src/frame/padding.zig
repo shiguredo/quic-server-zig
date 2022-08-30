@@ -28,8 +28,8 @@ pub const Padding = struct {
     }
 
     pub fn deinit(self: Self) void {
-        _ = self;
         // no-op
+        _ = self;
     }
 };
 

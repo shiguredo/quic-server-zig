@@ -38,6 +38,7 @@ pub const Extension = struct {
     }
 
     pub fn deinit(self: Self) void {
+        self.extension_type.deinit();
         self.extension_data.deinit();
     }
 };

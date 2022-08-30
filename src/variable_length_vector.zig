@@ -44,7 +44,14 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
         pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
             const len = try in.consume(LengthType);
             var data = ArrayList(T).init(allocator);
-            errdefer data.deinit();
+            errdefer {
+                if (comptime utils.hasDeinit(T)) {
+                    for (data.items) |item| {
+                        item.deinit();
+                    }
+                }
+                data.deinit();
+            }
 
             // Create new `Bytes` that only views the range being decoded as a `VariableLengthVector`.
             var new_bytes = Bytes{ .buf = try in.consumeBytes(len) };

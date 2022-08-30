@@ -93,6 +93,7 @@ pub const ExtensionType = enum(u16) {
     padding = 21,                                // RFC 7685
     extended_master_secret = 23,                 // RFC 7627
     record_size_limit = 28,                      // RFC 8449
+    session_ticket = 35,                         // RFC 5077, 8447
     RESERVED_1 = 40,                             // Used but never assigned
     pre_shared_key = 41,                         // RFC 8446
     early_data = 42,                             // RFC 8446

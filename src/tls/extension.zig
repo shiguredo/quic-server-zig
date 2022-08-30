@@ -74,12 +74,14 @@ test "decode Extension" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x02, 0x03, 0x04 }, got.extension_data.data.items);
 }
 
+/// https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml
 pub const ExtensionType = enum(u16) {
     // zig fmt: off
     server_name = 0,                             // RFC 6066
     max_fragment_length = 1,                     // RFC 6066
     status_request = 5,                          // RFC 6066
     supported_groups = 10,                       // RFC 8422, 7919
+    ec_point_formats = 11,                       // RFC 8422
     signature_algorithms = 13,                   // RFC 8446
     use_srtp = 14,                               // RFC 5764
     heartbeat = 15,                              // RFC 6520
@@ -88,6 +90,8 @@ pub const ExtensionType = enum(u16) {
     client_certificate_type = 19,                // RFC 7250
     server_certificate_type = 20,                // RFC 7250
     padding = 21,                                // RFC 7685
+    extended_master_secret = 23,                 // RFC 7627
+    record_size_limit = 28,                      // RFC 8449
     RESERVED_1 = 40,                             // Used but never assigned
     pre_shared_key = 41,                         // RFC 8446
     early_data = 42,                             // RFC 8446
@@ -101,6 +105,7 @@ pub const ExtensionType = enum(u16) {
     signature_algorithms_cert = 50,              // RFC 8446
     key_share = 51,                              // RFC 8446
     quic_transport_parameters = 57,              // RFC 9000, 9001
+    renegotiation_info = 65281,                  // RFC 5746
     // zig fmt: on
 
     const Self = @This();

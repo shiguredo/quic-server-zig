@@ -50,4 +50,6 @@ test "decode PADDING frame" {
 
     const got = try Padding.decode(std.testing.allocator, &in);
     defer got.deinit();
+
+    try std.testing.expectEqual(@as(u64, 0x00), got.frame_type);
 }

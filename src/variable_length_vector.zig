@@ -108,8 +108,12 @@ fn decodeInner(comptime T: type, allocator: std.mem.Allocator, in: *Bytes) !T {
         .Int => try in.consume(T),
         .Array => |arr| blk: {
             var ret: [arr.len]arr.child = undefined;
-            for (ret) |*item| {
-                item.* = try decodeInner(arr.child, allocator, in);
+            inline for (ret) |*item| {
+                const v = try decodeInner(arr.child, allocator, in);
+                errdefer {
+                    if (comptime utils.hasDeinit(arr.child)) v.deinit();
+                }
+                item.* = v;
             }
             break :blk ret;
         },

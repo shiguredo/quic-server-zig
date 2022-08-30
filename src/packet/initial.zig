@@ -7,6 +7,8 @@ const isSupported = @import("../version.zig").isSupported;
 const max_cid_len = @import("../packet.zig").max_cid_len;
 const crypto = @import("../crypto.zig");
 const Aes128 = std.crypto.core.aes.Aes128;
+const Frame = @import("../frame/frame.zig").Frame;
+const FrameType = @import("../frame/frame.zig").FrameType;
 
 /// An Initial Packet
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-initial-packet
@@ -49,7 +51,7 @@ pub const Initial = struct {
     /// Packet number.
     packet_number: u32,
     /// Payload of the packet.
-    payload: ArrayList(u8),
+    payload: ArrayList(Frame),
 
     const Self = @This();
 
@@ -108,12 +110,11 @@ pub const Initial = struct {
             while (i < packet_number_length) : (i += 1) {
                 pn[i] = packet_number_and_payload.items[i] ^ mask[1 + i];
             }
-            log.debug("magurotuna pn: {}\n", .{std.fmt.fmtSliceHexLower(&pn)});
             break :blk mem.readVarInt(u32, pn[0..packet_number_length], .Big);
         };
         log.debug("packet number: {}\n", .{packet_number});
 
-        const payload = blk: {
+        const payload_bytes = blk: {
             const encrypted_payload = packet_number_and_payload.items[packet_number_length..];
 
             const unprotected_header = hdr: {
@@ -136,7 +137,33 @@ pub const Initial = struct {
 
             break :blk try crypto.decryptPayload(allocator, encrypted_payload, unprotected_header, packet_number, dcid.items);
         };
-        errdefer payload.deinit();
+        defer payload_bytes.deinit();
+
+        const frames = blk: {
+            var buf = Bytes{ .buf = payload_bytes.items };
+            var fs = ArrayList(Frame).init(allocator);
+            errdefer {
+                for (fs.items) |item| {
+                    item.deinit();
+                }
+                fs.deinit();
+            }
+
+            decode_frames: while (true) {
+                const f = Frame.decode(allocator, &buf) catch |e| {
+                    // In case of `error.BufferTooShort` it indicates all frames have been decoded.
+                    if (e == error.BufferTooShort)
+                        break :decode_frames;
+
+                    return e;
+                };
+                errdefer f.deinit();
+                try fs.append(f);
+            }
+
+            break :blk fs;
+        };
+        errdefer frames.deinit();
 
         return Self{
             .version = version,
@@ -144,7 +171,7 @@ pub const Initial = struct {
             .source_connection_id = scid,
             .token = token,
             .packet_number = packet_number,
-            .payload = payload,
+            .payload = frames,
         };
     }
 
@@ -152,6 +179,9 @@ pub const Initial = struct {
         self.destination_connection_id.deinit();
         self.source_connection_id.deinit();
         self.token.deinit();
+        for (self.payload.items) |item| {
+            item.deinit();
+        }
         self.payload.deinit();
     }
 };
@@ -338,59 +368,19 @@ test "decode Client Initial from RFC 9001" {
     try std.testing.expectEqual(@as(usize, 0), got.source_connection_id.items.len);
     try std.testing.expectEqual(@as(usize, 0), got.token.items.len);
     try std.testing.expectEqual(@as(u32, 2), got.packet_number);
-    try std.testing.expectEqual(@as(usize, 1162), got.payload.items.len);
 
     // See if the payload part is correctly decoded.
-    const expected_payload = blk: {
-        // Copied from https://www.rfc-editor.org/rfc/rfc9001#name-client-initial
-        // zig fmt: off
-        const crypto_frame = [_]u8{
-            0x06, 0x00, 0x40, 0xf1, 0x01, 0x00, 0x00, 0xed,
-            0x03, 0x03, 0xeb, 0xf8, 0xfa, 0x56, 0xf1, 0x29,
-            0x39, 0xb9, 0x58, 0x4a, 0x38, 0x96, 0x47, 0x2e,
-            0xc4, 0x0b, 0xb8, 0x63, 0xcf, 0xd3, 0xe8, 0x68,
-            0x04, 0xfe, 0x3a, 0x47, 0xf0, 0x6a, 0x2b, 0x69,
-            0x48, 0x4c, 0x00, 0x00, 0x04, 0x13, 0x01, 0x13,
-            0x02, 0x01, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00,
-            0x10, 0x00, 0x0e, 0x00, 0x00, 0x0b, 0x65, 0x78,
-            0x61, 0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f,
-            0x6d, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x0a,
-            0x00, 0x08, 0x00, 0x06, 0x00, 0x1d, 0x00, 0x17,
-            0x00, 0x18, 0x00, 0x10, 0x00, 0x07, 0x00, 0x05,
-            0x04, 0x61, 0x6c, 0x70, 0x6e, 0x00, 0x05, 0x00,
-            0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x33,
-            0x00, 0x26, 0x00, 0x24, 0x00, 0x1d, 0x00, 0x20,
-            0x93, 0x70, 0xb2, 0xc9, 0xca, 0xa4, 0x7f, 0xba,
-            0xba, 0xf4, 0x55, 0x9f, 0xed, 0xba, 0x75, 0x3d,
-            0xe1, 0x71, 0xfa, 0x71, 0xf5, 0x0f, 0x1c, 0xe1,
-            0x5d, 0x43, 0xe9, 0x94, 0xec, 0x74, 0xd7, 0x48,
-            0x00, 0x2b, 0x00, 0x03, 0x02, 0x03, 0x04, 0x00,
-            0x0d, 0x00, 0x10, 0x00, 0x0e, 0x04, 0x03, 0x05,
-            0x03, 0x06, 0x03, 0x02, 0x03, 0x08, 0x04, 0x08,
-            0x05, 0x08, 0x06, 0x00, 0x2d, 0x00, 0x02, 0x01,
-            0x01, 0x00, 0x1c, 0x00, 0x02, 0x40, 0x01, 0x00,
-            0x39, 0x00, 0x32, 0x04, 0x08, 0xff, 0xff, 0xff,
-            0xff, 0xff, 0xff, 0xff, 0xff, 0x05, 0x04, 0x80,
-            0x00, 0xff, 0xff, 0x07, 0x04, 0x80, 0x00, 0xff,
-            0xff, 0x08, 0x01, 0x10, 0x01, 0x04, 0x80, 0x00,
-            0x75, 0x30, 0x09, 0x01, 0x10, 0x0f, 0x08, 0x83,
-            0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08, 0x06,
-            0x04, 0x80, 0x00, 0xff, 0xff,
-        };
-        // zig fmt: on
 
-        // PADDING frames are added to make the packet reach 1200 bytes, since clients MUST ensure that
-        // UDP datagrams containing Initial packets have UDP payloads of at least 1200 bytes.
-        // Note that `1162` is `1200 - header_size (22 bytes, in this case) - authentication_tag_size (16 bytes)`.
-        //
-        // https://www.rfc-editor.org/rfc/rfc9000.html#name-address-validation-during-c
-        // https://www.rfc-editor.org/rfc/rfc9001#name-client-initial
-        const padding_frames = [_]u8{0x00} ** (1162 - crypto_frame.len);
+    // Contains 1 CRYPTO frame and 917 PADDING frames
+    try std.testing.expectEqual(@as(usize, 918), got.payload.items.len);
 
-        break :blk crypto_frame ++ padding_frames;
-    };
-
-    try std.testing.expectEqualSlices(u8, &expected_payload, got.payload.items);
+    // The first frame is CRYPTO
+    try std.testing.expectEqual(FrameType.crypto, got.payload.items[0]);
+    // The rest frames are all PADDING
+    for (got.payload.items[1..]) |f| {
+        try std.testing.expectEqual(FrameType.padding, f);
+        try std.testing.expectEqual(@as(u64, 0x00), f.padding.frame_type);
+    }
 }
 
 test "decode Client Initial from 'The Illustrated QUIC Connection'" {
@@ -456,7 +446,8 @@ test "decode Client Initial from 'The Illustrated QUIC Connection'" {
     );
     try std.testing.expectEqual(@as(usize, 0), got.token.items.len);
     try std.testing.expectEqual(@as(u32, 0), got.packet_number);
-    try std.testing.expectEqual(@as(usize, 242), got.payload.items.len);
+    // Contains a CRYPTO frame only
+    try std.testing.expectEqual(@as(usize, 1), got.payload.items.len);
 }
 
 test "decode Client Initial from cloudflare/quiche" {
@@ -643,7 +634,8 @@ test "decode Client Initial from cloudflare/quiche" {
     );
     try std.testing.expectEqual(@as(usize, 0), got.token.items.len);
     try std.testing.expectEqual(@as(u32, 0), got.packet_number);
-    try std.testing.expectEqual(@as(usize, 258), got.payload.items.len);
+    // Contains a CRYPTO frame only
+    try std.testing.expectEqual(@as(usize, 1), got.payload.items.len);
 }
 
 test "decode Client Initial from aws/s2n-quic" {
@@ -828,5 +820,6 @@ test "decode Client Initial from aws/s2n-quic" {
     );
     try std.testing.expectEqual(@as(usize, 0), got.token.items.len);
     try std.testing.expectEqual(@as(u32, 0), got.packet_number);
-    try std.testing.expectEqual(@as(usize, 1149), got.payload.items.len);
+    // Contains 1 CRYPTO frame and 917 PADDING frames
+    try std.testing.expectEqual(@as(usize, 918), got.payload.items.len);
 }

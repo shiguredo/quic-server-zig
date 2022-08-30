@@ -3,6 +3,7 @@ const math = std.math;
 const mem = std.mem;
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../bytes.zig").Bytes;
+const Extension = @import("./extension.zig").Extension;
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3.1
 ///
@@ -20,21 +21,24 @@ const Bytes = @import("../bytes.zig").Bytes;
 ///      Extension extensions<8..2^16-1>;
 /// } ClientHello;
 pub const ClientHello = struct {
-    const legacy_version = 0x0303;
     const ProtocolVersion = u16;
     const Random = [32]u8;
-    const LegacySessionId = VariableLengthVector(u8, u32);
+    const LegacySessionId = VariableLengthVector(u8, 32);
     const CipherSuite = [2]u8;
-    const CipherSuites = VariableLengthVector(CipherSuite, 255);
+    const CipherSuites = VariableLengthVector(CipherSuite, 65534);
     const LegacyCompressionMethods = VariableLengthVector(u8, 255);
     const Extensions = VariableLengthVector(Extension, 65535);
 
+    const legacy_version: ProtocolVersion = 0x0303;
+
     legacy_version: u16 = legacy_version,
     random: [32]u8,
-    legacy_session_id: VariableLengthVector(u8, 32),
+    legacy_session_id: LegacySessionId,
     cipher_suites: CipherSuites,
     legacy_compression_methods: LegacyCompressionMethods,
     extensions: Extensions,
+
+    const Self = @This();
 
     pub fn encodedLength(self: Self) usize {
         var len: usize = 0;
@@ -63,7 +67,7 @@ pub const ClientHello = struct {
 
         const rand = blk: {
             const r = try in.consumeBytes(32);
-            const arr: [32]u8 = undefined;
+            var arr: [32]u8 = undefined;
             mem.copy(u8, &arr, r);
             break :blk arr;
         };
@@ -76,7 +80,7 @@ pub const ClientHello = struct {
         const extensions = try Extensions.decode(allocator, in);
         errdefer extensions.deinit();
 
-        return .{
+        return Self{
             .random = rand,
             .legacy_session_id = legacy_session_id,
             .cipher_suites = cipher_suites,
@@ -124,5 +128,7 @@ test "ClientHello decode" {
 
     var in = Bytes{ .buf = &buf };
     const got = try ClientHello.decode(std.testing.allocator, &in);
+    defer got.deinit();
     try std.testing.expectEqual(ClientHello.legacy_version, got.legacy_version);
+    // TODO(magurotuna): add more assertions
 }

@@ -138,8 +138,8 @@ pub const Handshake = union(HandshakeType) {
         const ty = try in.consume(HandshakeType.TagType);
         _ = try in.consume(u24); // length
 
-        return switch (ty) {
-            .client_hello => .{ .client_hello = ClientHello.decode(allocator, in) },
+        return switch (@intToEnum(HandshakeType, ty)) {
+            .client_hello => .{ .client_hello = try ClientHello.decode(allocator, in) },
             // TODO(magurotuna): implement
             else => unreachable,
         };
@@ -186,5 +186,7 @@ test "Handshake (ClientHello) decode" {
 
     var in = Bytes{ .buf = &buf };
     const got = try Handshake.decode(std.testing.allocator, &in);
+    defer got.deinit();
     try std.testing.expect(got == .client_hello);
+    // TODO(magurotuna): add more assertions
 }

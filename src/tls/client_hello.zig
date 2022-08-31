@@ -1,5 +1,4 @@
 const std = @import("std");
-const math = std.math;
 const mem = std.mem;
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../bytes.zig").Bytes;
@@ -33,7 +32,7 @@ pub const ClientHello = struct {
     const legacy_version: ProtocolVersion = 0x0303;
 
     legacy_version: u16 = legacy_version,
-    random: [32]u8,
+    random: Random,
     legacy_session_id: LegacySessionId,
     cipher_suites: CipherSuites,
     legacy_compression_methods: LegacyCompressionMethods,
@@ -53,7 +52,7 @@ pub const ClientHello = struct {
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {
-        try out.put(u16, self.legacy_version);
+        try out.put(ProtocolVersion, self.legacy_version);
         try out.putBytes(&self.random);
         try self.legacy_session_id.encode(out);
         try self.cipher_suites.encode(out);

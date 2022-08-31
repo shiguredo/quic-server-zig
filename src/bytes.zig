@@ -15,6 +15,7 @@ pub const Bytes = struct {
     const Self = @This();
     const Error = error{
         BufferTooShort,
+        NoMoreData,
     };
 
     /// Returns the number of remaining bytes in the buffer.
@@ -80,6 +81,40 @@ pub const Bytes = struct {
     pub fn consumeBytes(self: *Self, size: usize) ![]u8 {
         const ret = try self.peekBytes(size);
         self.pos += size;
+        return ret;
+    }
+
+    /// Reads bytes until the end of the buffer without advancing the position,
+    /// and returns the bytes as a slice without allocating any additional memory.
+    pub fn peekBytesUntilEnd(self: Self) ![]u8 {
+        if (self.pos >= self.buf.len)
+            return Error.NoMoreData;
+
+        return self.buf[self.pos..];
+    }
+
+    /// Reads bytes until the end of the buffer without advancing the position,
+    /// and returns the bytes as `ArrayList(u8)` so the caller owns it.
+    pub fn peekBytesUntilEndOwned(self: Self, allocator: mem.Allocator) !ArrayList(u8) {
+        const slice = try self.peekBytesUntilEnd();
+        var ret = try ArrayList(u8).initCapacity(allocator, slice.len);
+        ret.appendSliceAssumeCapacity(slice);
+        return ret;
+    }
+
+    /// Reads bytes until the end of the buffer, advances the position,
+    /// and returns the bytes as a slice without allocating any additional memory.
+    pub fn consumeBytesUntilEnd(self: *Self) ![]u8 {
+        const ret = try self.peekBytesUntilEnd();
+        self.pos = self.buf.len;
+        return ret;
+    }
+
+    /// Reads bytes until the end of the buffer, advances the position,
+    /// and returns the bytes as `ArrayList(u8)` so the caller owns it.
+    pub fn consumeBytesUntilEndOwned(self: *Self, allocator: mem.Allocator) !ArrayList(u8) {
+        const ret = try self.peekBytesUntilEndOwned(allocator);
+        self.pos = self.buf.len;
         return ret;
     }
 
@@ -230,6 +265,17 @@ test "consumeBytes" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01 }, try b.consumeBytes(2));
     try std.testing.expectEqualSlices(u8, &[_]u8{0x02}, try b.consumeBytes(1));
     try std.testing.expectError(error.BufferTooShort, b.consumeBytes(1));
+}
+
+test "peekBytesUntilEnd, consumeBytesUntilEnd" {
+    var buf = [_]u8{ 0x00, 0x01, 0x02 };
+
+    var b = Bytes{ .buf = &buf };
+
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01, 0x02 }, try b.peekBytesUntilEnd());
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01, 0x02 }, try b.consumeBytesUntilEnd());
+    try std.testing.expectError(error.NoMoreData, b.peekBytesUntilEnd());
+    try std.testing.expectError(error.NoMoreData, b.consumeBytesUntilEnd());
 }
 
 test "Bytes parse variable-length integer" {

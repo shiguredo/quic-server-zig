@@ -3,6 +3,8 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
+const NamedGroups = VariableLengthVector(NamedGroup, 65535);
+
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.7
 ///
 /// > The "extension_data" field of this extension contains a "NamedGroupList" value:
@@ -30,7 +32,6 @@ pub const NamedGroupList = struct {
     named_group_list: NamedGroups,
 
     const Self = @This();
-    const NamedGroups = VariableLengthVector(NamedGroup, 65535);
 
     pub fn encodedLength(self: Self) usize {
         return self.named_group_list.encodedLength();
@@ -53,17 +54,7 @@ pub const NamedGroupList = struct {
 
 test "encode NamedGroupList" {
     const ngl = NamedGroupList{
-        .named_group_list = .{
-            .data = blk: {
-                var groups = std.ArrayList(NamedGroup).init(std.testing.allocator);
-                errdefer groups.deinit();
-
-                try groups.append(.secp256r1);
-                try groups.append(.ffdhe2048);
-
-                break :blk groups;
-            },
-        },
+        .named_group_list = try NamedGroups.fromSlice(std.testing.allocator, &.{ .secp256r1, .ffdhe2048 }),
     };
     defer ngl.deinit();
 

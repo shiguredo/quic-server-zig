@@ -3,6 +3,9 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
+const ServerNames = VariableLengthVector(ServerName, 65535);
+const HostName = VariableLengthVector(u8, 65535);
+
 /// https://www.rfc-editor.org/rfc/rfc6066#section-3
 ///
 /// > The "extension_data" field of this extension SHALL contain "ServerNameList" where:
@@ -26,7 +29,6 @@ const Bytes = @import("../../bytes.zig").Bytes;
 pub const ServerNameList = struct {
     server_name_list: ServerNames,
 
-    const ServerNames = VariableLengthVector(ServerName, 65535);
     const Self = @This();
 
     pub fn encodedLength(self: Self) usize {
@@ -50,35 +52,10 @@ pub const ServerNameList = struct {
 
 test "encode ServerNameList" {
     const snl = ServerNameList{
-        .server_name_list = .{
-            .data = blk: {
-                var names = std.ArrayList(ServerName).init(std.testing.allocator);
-                errdefer names.deinit();
-
-                try names.append(.{
-                    .host_name = .{
-                        .data = name: {
-                            var n = std.ArrayList(u8).init(std.testing.allocator);
-                            errdefer n.deinit();
-                            try n.appendSlice(&.{ 0x01, 0x02 });
-                            break :name n;
-                        },
-                    },
-                });
-                try names.append(.{
-                    .host_name = .{
-                        .data = name: {
-                            var n = std.ArrayList(u8).init(std.testing.allocator);
-                            errdefer n.deinit();
-                            try n.appendSlice(&.{ 0x03, 0x04, 0x05 });
-                            break :name n;
-                        },
-                    },
-                });
-
-                break :blk names;
-            },
-        },
+        .server_name_list = try ServerNames.fromSlice(std.testing.allocator, &.{
+            .{ .host_name = try HostName.fromSlice(std.testing.allocator, &.{ 0x01, 0x02 }) },
+            .{ .host_name = try HostName.fromSlice(std.testing.allocator, &.{ 0x03, 0x04, 0x05 }) },
+        }),
     };
     defer snl.deinit();
 
@@ -122,7 +99,6 @@ test "decode ServerNameList" {
 pub const ServerName = union(NameType) {
     host_name: HostName,
 
-    const HostName = VariableLengthVector(u8, 65535);
     const Self = @This();
 
     pub fn encodedLength(self: Self) usize {
@@ -154,14 +130,7 @@ pub const ServerName = union(NameType) {
 
 test "encode ServerName" {
     const sn = ServerName{
-        .host_name = .{
-            .data = blk: {
-                var d = std.ArrayList(u8).init(std.testing.allocator);
-                errdefer d.deinit();
-                try d.appendSlice(&.{ 0x01, 0x02 });
-                break :blk d;
-            },
-        },
+        .host_name = try HostName.fromSlice(std.testing.allocator, &.{ 0x01, 0x02 }),
     };
     defer sn.deinit();
 

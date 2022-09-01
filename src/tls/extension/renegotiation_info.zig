@@ -3,6 +3,8 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
+const RenegotiatedConnection = VariableLengthVector(u8, 255);
+
 /// https://www.ietf.org/rfc/rfc5746.html#section-3.2
 ///
 /// struct {
@@ -12,7 +14,6 @@ pub const RenegotiationInfo = struct {
     renegotiated_connection: RenegotiatedConnection,
 
     const Self = @This();
-    const RenegotiatedConnection = VariableLengthVector(u8, 255);
 
     pub fn encodedLength(self: Self) usize {
         return self.renegotiated_connection.encodedLength();
@@ -35,14 +36,7 @@ pub const RenegotiationInfo = struct {
 
 test "encode RenegotiatedConnection" {
     const ri = RenegotiationInfo{
-        .renegotiated_connection = .{
-            .data = blk: {
-                var conn = std.ArrayList(u8).init(std.testing.allocator);
-                errdefer conn.deinit();
-                try conn.appendSlice(&.{ 0x01, 0x02, 0x03 });
-                break :blk conn;
-            },
-        },
+        .renegotiated_connection = try RenegotiatedConnection.fromSlice(std.testing.allocator, &.{ 0x01, 0x02, 0x03 }),
     };
     defer ri.deinit();
 

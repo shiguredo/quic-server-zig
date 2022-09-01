@@ -3,6 +3,8 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
+const KeModes = VariableLengthVector(PskKeyExchangeMode, 255);
+
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.9
 ///
 /// struct {
@@ -12,7 +14,6 @@ pub const PskKeyExchangeModes = struct {
     ke_modes: KeModes,
 
     const Self = @This();
-    const KeModes = VariableLengthVector(PskKeyExchangeMode, 255);
 
     pub fn encodedLength(self: Self) usize {
         return self.ke_modes.encodedLength();
@@ -35,15 +36,7 @@ pub const PskKeyExchangeModes = struct {
 
 test "encode PskKeyExchangeModes" {
     const modes = PskKeyExchangeModes{
-        .ke_modes = .{
-            .data = blk: {
-                var m = std.ArrayList(PskKeyExchangeMode).init(std.testing.allocator);
-                errdefer m.deinit();
-                try m.append(.psk_dhe_ke);
-                try m.append(.psk_ke);
-                break :blk m;
-            },
-        },
+        .ke_modes = try KeModes.fromSlice(std.testing.allocator, &.{ .psk_dhe_ke, .psk_ke }),
     };
     defer modes.deinit();
 

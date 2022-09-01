@@ -2,6 +2,9 @@ const std = @import("std");
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
+const ProtocolVersion = u16;
+const Versions = VariableLengthVector(ProtocolVersion, 254);
+
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.1
 ///
 /// uint16 ProtocolVersion;
@@ -15,7 +18,6 @@ const Bytes = @import("../../bytes.zig").Bytes;
 ///     };
 /// } SupportedVersions;
 pub const ServerSupportedVersions = struct {
-    const ProtocolVersion = u16;
     const Self = @This();
 
     selected_version: ProtocolVersion,
@@ -80,8 +82,6 @@ test "decode ServerSupportedVersions" {
 ///     };
 /// } SupportedVersions;
 pub const ClientSupportedVersions = struct {
-    const ProtocolVersion = u16;
-    const Versions = VariableLengthVector(ProtocolVersion, 254);
     const Self = @This();
 
     versions: Versions,
@@ -108,15 +108,7 @@ pub const ClientSupportedVersions = struct {
 
 test "encode ClientSupportedVersions" {
     const sv = ClientSupportedVersions{
-        .versions = blk: {
-            var vs = std.ArrayList(ClientSupportedVersions.ProtocolVersion).init(std.testing.allocator);
-            errdefer vs.deinit();
-
-            try vs.append(0x00_01);
-            try vs.append(0x02_03);
-
-            break :blk .{ .data = vs };
-        },
+        .versions = try Versions.fromSlice(std.testing.allocator, &.{ 0x00_01, 0x02_03 }),
     };
     defer sv.deinit();
 

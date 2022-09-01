@@ -3,6 +3,8 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
+const SupportedSignatureAlgorithms = VariableLengthVector(SignatureScheme, 65534);
+
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.3
 ///
 /// struct {
@@ -12,7 +14,6 @@ pub const SignatureSchemeList = struct {
     supported_signature_algorithms: SupportedSignatureAlgorithms,
 
     const Self = @This();
-    const SupportedSignatureAlgorithms = VariableLengthVector(SignatureScheme, 65534);
 
     pub fn encodedLength(self: Self) usize {
         return self.supported_signature_algorithms.encodedLength();
@@ -35,15 +36,10 @@ pub const SignatureSchemeList = struct {
 
 test "encode SignatureSchemeList" {
     const sig_list = SignatureSchemeList{
-        .supported_signature_algorithms = .{
-            .data = blk: {
-                var s = std.ArrayList(SignatureScheme).init(std.testing.allocator);
-                errdefer s.deinit();
-                try s.append(.rsa_pkcs1_sha256);
-                try s.append(.ed25519);
-                break :blk s;
-            },
-        },
+        .supported_signature_algorithms = try SupportedSignatureAlgorithms.fromSlice(
+            std.testing.allocator,
+            &.{ .rsa_pkcs1_sha256, .ed25519 },
+        ),
     };
     defer sig_list.deinit();
 

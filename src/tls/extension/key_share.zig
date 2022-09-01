@@ -3,6 +3,9 @@ const VariableLengthVector = @import("../../variable_length_vector.zig").Variabl
 const Bytes = @import("../../bytes.zig").Bytes;
 const NamedGroup = @import("./supported_groups.zig").NamedGroup;
 
+const ClientShares = VariableLengthVector(KeyShareEntry, 65535);
+const KeyExchange = VariableLengthVector(u8, 65535);
+
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8
 /// 
 /// > In the ClientHello message, the "extension_data" field of this extension
@@ -15,7 +18,6 @@ pub const KeyShareClientHello = struct {
     client_shares: ClientShares,
 
     const Self = @This();
-    const ClientShares = VariableLengthVector(KeyShareEntry, 65535);
 
     pub fn encodedLength(self: Self) usize {
         return self.client_shares.encodedLength();
@@ -38,38 +40,16 @@ pub const KeyShareClientHello = struct {
 
 test "encode KeyShareClientHello" {
     const ks = KeyShareClientHello{
-        .client_shares = .{
-            .data = blk: {
-                var shares = std.ArrayList(KeyShareEntry).init(std.testing.allocator);
-                errdefer shares.deinit();
-
-                try shares.append(.{
-                    .group = .x25519,
-                    .key_exchange = .{
-                        .data = key: {
-                            var k = std.ArrayList(u8).init(std.testing.allocator);
-                            errdefer k.deinit();
-                            try k.appendSlice(&.{ 0x01, 0x02 });
-                            break :key k;
-                        },
-                    },
-                });
-
-                try shares.append(.{
-                    .group = .ffdhe2048,
-                    .key_exchange = .{
-                        .data = key: {
-                            var k = std.ArrayList(u8).init(std.testing.allocator);
-                            errdefer k.deinit();
-                            try k.appendSlice(&.{0x03});
-                            break :key k;
-                        },
-                    },
-                });
-
-                break :blk shares;
+        .client_shares = try ClientShares.fromSlice(std.testing.allocator, &.{
+            .{
+                .group = .x25519,
+                .key_exchange = try KeyExchange.fromSlice(std.testing.allocator, &.{ 0x01, 0x02 }),
             },
-        },
+            .{
+                .group = .ffdhe2048,
+                .key_exchange = try KeyExchange.fromSlice(std.testing.allocator, &.{0x03}),
+            },
+        }),
     };
     defer ks.deinit();
 
@@ -136,14 +116,7 @@ test "encode KeyShareServerHello" {
     const ks = KeyShareServerHello{
         .server_share = .{
             .group = .x25519,
-            .key_exchange = .{
-                .data = blk: {
-                    var k = std.ArrayList(u8).init(std.testing.allocator);
-                    errdefer k.deinit();
-                    try k.appendSlice(&.{ 0x01, 0x02 });
-                    break :blk k;
-                },
-            },
+            .key_exchange = try KeyExchange.fromSlice(std.testing.allocator, &.{ 0x01, 0x02 }),
         },
     };
     defer ks.deinit();
@@ -178,7 +151,6 @@ pub const KeyShareEntry = struct {
     key_exchange: KeyExchange,
 
     const Self = @This();
-    const KeyExchange = VariableLengthVector(u8, 65535);
 
     pub fn encodedLength(self: Self) usize {
         return self.group.encodedLength() + self.key_exchange.encodedLength();
@@ -210,14 +182,7 @@ pub const KeyShareEntry = struct {
 test "encode KeyShareEntry" {
     const ent = KeyShareEntry{
         .group = .x25519,
-        .key_exchange = .{
-            .data = blk: {
-                var k = std.ArrayList(u8).init(std.testing.allocator);
-                errdefer k.deinit();
-                try k.appendSlice(&.{ 0x01, 0x02 });
-                break :blk k;
-            },
-        },
+        .key_exchange = try KeyExchange.fromSlice(std.testing.allocator, &.{ 0x01, 0x02 }),
     };
     defer ent.deinit();
 

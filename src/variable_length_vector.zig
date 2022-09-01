@@ -113,6 +113,15 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
 
             try self.data.append(item);
         }
+
+        /// Append the given items to the `VariableLengthVector`.
+        /// Note that the ownership of the item will be moved to the `VariableLengthVector`.
+        pub fn appendSlice(self: *Self, items: []const T) !void {
+            if (self.data.items.len + items.len > maximum_length)
+                return VariableLengthVectorError.ExceedsLimit;
+
+            try self.data.appendSlice(items);
+        }
     };
 }
 
@@ -295,17 +304,21 @@ test "create a new VariableLengthVector with fromSlice" {
 }
 
 test "append items to a VariableLengthVector" {
-    const Vec = VariableLengthVector(u8, 2);
+    const Vec = VariableLengthVector(u8, 3);
 
     var v = try Vec.fromSlice(std.testing.allocator, &.{});
     defer v.deinit();
 
     try v.append(0x01);
-    try v.append(0x02);
-    try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02 }, v.data.items);
+    try v.appendSlice(&.{ 0x02, 0x03 });
+    try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02, 0x03 }, v.data.items);
 
     try std.testing.expectError(
         VariableLengthVectorError.ExceedsLimit,
-        v.append(0x03),
+        v.append(0x04),
+    );
+    try std.testing.expectError(
+        VariableLengthVectorError.ExceedsLimit,
+        v.appendSlice(&.{0x04}),
     );
 }

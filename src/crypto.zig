@@ -144,14 +144,16 @@ test "client header protection mask" {
 
 const HkdfLabel = struct {
     length: u16,
-    label: VariableLengthVector(u8, label_max_length),
-    context: VariableLengthVector(u8, ctx_max_length),
-
-    const Self = @This();
+    label: Label,
+    context: Context,
 
     const label_prefix = "tls13 ";
     const label_max_length = 255;
     const ctx_max_length = 255;
+
+    const Self = @This();
+    const Label = VariableLengthVector(u8, label_max_length);
+    const Context = VariableLengthVector(u8, ctx_max_length);
 
     fn encodedLength(self: Self) usize {
         var len: usize = 0;
@@ -169,6 +171,30 @@ const HkdfLabel = struct {
         try self.label.encode(out);
         try self.context.encode(out);
     }
+
+    fn new(allocator: std.mem.Allocator, length: u16, label_data: []const u8, context_data: []const u8) !Self {
+        const label = blk: {
+            var lbl = try Label.fromSlice(allocator, label_prefix);
+            errdefer lbl.deinit();
+            try lbl.appendSlice(label_data);
+            break :blk lbl;
+        };
+        errdefer label.deinit();
+
+        const context = try Context.fromSlice(allocator, context_data);
+        errdefer context.deinit();
+
+        return Self{
+            .length = length,
+            .label = label,
+            .context = context,
+        };
+    }
+
+    fn deinit(self: Self) void {
+        self.label.deinit();
+        self.context.deinit();
+    }
 };
 
 fn hkdfExpandLabel(secret: [32]u8, label: []const u8, ctx: []const u8, out: []u8) !void {
@@ -183,20 +209,7 @@ fn hkdfExpandLabel(secret: [32]u8, label: []const u8, ctx: []const u8, out: []u8
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const hkdfLabel = HkdfLabel{
-        .length = @intCast(u16, out.len),
-        .label = label: {
-            var lbl = try ArrayList(u8).initCapacity(allocator, HkdfLabel.label_prefix.len + label.len);
-            lbl.appendSliceAssumeCapacity(HkdfLabel.label_prefix);
-            lbl.appendSliceAssumeCapacity(label);
-            break :label .{ .data = lbl };
-        },
-        .context = ctx: {
-            var context = try ArrayList(u8).initCapacity(allocator, ctx.len);
-            context.appendSliceAssumeCapacity(ctx);
-            break :ctx .{ .data = context };
-        },
-    };
+    const hkdfLabel = try HkdfLabel.new(allocator, @intCast(u16, out.len), label, ctx);
 
     // TODO(magurotuna): consider more appropriate array size
     var encoded_label: [4096]u8 = undefined;

@@ -5,6 +5,10 @@ const ArrayList = std.ArrayList;
 const Bytes = @import("./bytes.zig").Bytes;
 const utils = @import("./utils.zig");
 
+const VariableLengthVectorError = error{
+    ExceedsLimit,
+};
+
 pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) type {
     return struct {
         data: ArrayList(T),
@@ -87,6 +91,28 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
 
             self.data.deinit();
         }
+
+        /// Create a new `VariableLengthVector` with the given items.
+        /// Note that the ownership of each item will be moved to the created `VariableLengthVector`.
+        pub fn fromSlice(allocator: std.mem.Allocator, items: []const T) !Self {
+            if (items.len > maximum_length)
+                return VariableLengthVectorError.ExceedsLimit;
+
+            var data = try ArrayList(T).initCapacity(allocator, items.len);
+            errdefer data.deinit();
+
+            data.appendSliceAssumeCapacity(items);
+            return Self{ .data = data };
+        }
+
+        /// Append the given item to the `VariableLengthVector`.
+        /// Note that the ownership of the item will be moved to the `VariableLengthVector`.
+        pub fn append(self: *Self, item: T) !void {
+            if (self.data.items.len == maximum_length)
+                return VariableLengthVectorError.ExceedsLimit;
+
+            try self.data.append(item);
+        }
     };
 }
 
@@ -165,7 +191,7 @@ const Foo = struct {
 
 test "encode empty VariableLengthVector of u8" {
     const Opaque = VariableLengthVector(u8, 400);
-    const v = Opaque{ .data = ArrayList(u8).init(std.testing.allocator) };
+    const v = try Opaque.fromSlice(std.testing.allocator, &.{});
     defer v.deinit();
     var buf: [1024]u8 = undefined;
     var out = Bytes{ .buf = &buf };
@@ -176,14 +202,7 @@ test "encode empty VariableLengthVector of u8" {
 
 test "encode non-empty VariableLengthVector of u8" {
     const Opaque = VariableLengthVector(u8, 255);
-    const data = blk: {
-        var v = ArrayList(u8).init(std.testing.allocator);
-        errdefer v.deinit();
-        try v.append(0x00);
-        try v.append(0x01);
-        break :blk v;
-    };
-    const v = Opaque{ .data = data };
+    const v = try Opaque.fromSlice(std.testing.allocator, &.{ 0x00, 0x01 });
     defer v.deinit();
     var buf: [1024]u8 = undefined;
     var out = Bytes{ .buf = &buf };
@@ -256,4 +275,37 @@ test "decode non-empty VariableLengthVector of a type that needs to be deinitial
     try std.testing.expectEqual(@as(usize, 1), got.data.items.len);
     const foo_data = got.data.items[0].data.items;
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01 }, foo_data);
+}
+
+test "create a new VariableLengthVector with fromSlice" {
+    const Vec = VariableLengthVector(u8, 2);
+
+    {
+        const v = try Vec.fromSlice(std.testing.allocator, &.{ 0x01, 0x02 });
+        defer v.deinit();
+        try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02 }, v.data.items);
+    }
+
+    {
+        try std.testing.expectError(
+            VariableLengthVectorError.ExceedsLimit,
+            Vec.fromSlice(std.testing.allocator, &.{ 0x01, 0x02, 0x03 }),
+        );
+    }
+}
+
+test "append items to a VariableLengthVector" {
+    const Vec = VariableLengthVector(u8, 2);
+
+    var v = try Vec.fromSlice(std.testing.allocator, &.{});
+    defer v.deinit();
+
+    try v.append(0x01);
+    try v.append(0x02);
+    try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02 }, v.data.items);
+
+    try std.testing.expectError(
+        VariableLengthVectorError.ExceedsLimit,
+        v.append(0x03),
+    );
 }

@@ -2,8 +2,8 @@ const std = @import("std");
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
-const ProtocolVersion = u16;
-const Versions = VariableLengthVector(ProtocolVersion, 254);
+pub const ProtocolVersion = u16;
+pub const Versions = VariableLengthVector(ProtocolVersion, 254);
 
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.1
 ///

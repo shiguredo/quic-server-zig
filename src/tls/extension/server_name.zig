@@ -3,8 +3,8 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
-const ServerNames = VariableLengthVector(ServerName, 65535);
-const HostName = VariableLengthVector(u8, 65535);
+pub const ServerNames = VariableLengthVector(ServerName, 65535);
+pub const HostName = VariableLengthVector(u8, 65535);
 
 /// https://www.rfc-editor.org/rfc/rfc6066#section-3
 ///
@@ -157,7 +157,7 @@ test "decode ServerName" {
 /// enum {
 ///     host_name(0), (255)
 /// } NameType;
-const NameType = enum(u8) {
+pub const NameType = enum(u8) {
     host_name = 0,
 
     const Self = @This();

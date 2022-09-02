@@ -3,7 +3,7 @@ const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
 
-const SupportedSignatureAlgorithms = VariableLengthVector(SignatureScheme, 65534);
+pub const SupportedSignatureAlgorithms = VariableLengthVector(SignatureScheme, 65534);
 
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.3
 ///

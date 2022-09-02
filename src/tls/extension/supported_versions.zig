@@ -66,7 +66,7 @@ test "decode ServerSupportedVersions" {
     const got = try ServerSupportedVersions.decode(std.testing.allocator, &in);
     defer got.deinit();
 
-    try std.testing.expectEqual(@as(ServerSupportedVersions.ProtocolVersion, 0x00_01), got.selected_version);
+    try std.testing.expectEqual(@as(ProtocolVersion, 0x00_01), got.selected_version);
 }
 
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.1
@@ -128,6 +128,6 @@ test "decode ClientSupportedVersions" {
     defer got.deinit();
 
     try std.testing.expectEqual(@as(usize, 2), got.versions.data.items.len);
-    try std.testing.expectEqual(@as(ClientSupportedVersions.ProtocolVersion, 0x00_01), got.versions.data.items[0]);
-    try std.testing.expectEqual(@as(ClientSupportedVersions.ProtocolVersion, 0x02_03), got.versions.data.items[1]);
+    try std.testing.expectEqual(@as(ProtocolVersion, 0x00_01), got.versions.data.items[0]);
+    try std.testing.expectEqual(@as(ProtocolVersion, 0x02_03), got.versions.data.items[1]);
 }

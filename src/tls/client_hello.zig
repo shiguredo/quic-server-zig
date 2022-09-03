@@ -28,7 +28,7 @@ pub const ClientHello = struct {
     const CipherSuite = [2]u8;
     const CipherSuites = VariableLengthVector(CipherSuite, 65534);
     const LegacyCompressionMethods = VariableLengthVector(u8, 255);
-    const Extensions = VariableLengthVector(Extension, 65535);
+    const Extensions = VariableLengthVector(Extension(.client), 65535);
 
     const legacy_version: ProtocolVersion = 0x0303;
 
@@ -99,6 +99,11 @@ pub const ClientHello = struct {
 };
 
 test "ClientHello decode" {
+    const supported_groups = @import("./extension/supported_groups.zig");
+    const supported_versions = @import("./extension/supported_versions.zig");
+    const signature_algorithms = @import("./extension/signature_algorithms.zig");
+    const psk_key_exchange_modes = @import("./extension/psk_key_exchange_modes.zig");
+
     // Brought from https://www.rfc-editor.org/rfc/rfc8448#section-3
     // zig fmt: off
     var buf = [_]u8{
@@ -121,7 +126,7 @@ test "ClientHello decode" {
         0x01, 0x00,
 
         // extensions
-        0x00, 0x91,
+        0x00, 0x89,
 
         // server_name extension
         0x00, 0x00,
@@ -161,11 +166,17 @@ test "ClientHello decode" {
 
         // signature_algorithms extension
         0x00, 0x0d,
-        0x00, 0x20,
-        0x00, 0x1e, 0x04, 0x03, 0x05, 0x03, 0x06, 0x03,
+        0x00, 0x18,
+        0x00, 0x16, 0x04, 0x03, 0x05, 0x03, 0x06, 0x03,
         0x02, 0x03, 0x08, 0x04, 0x08, 0x05, 0x08, 0x06,
         0x04, 0x01, 0x05, 0x01, 0x06, 0x01, 0x02, 0x01,
-        0x04, 0x02, 0x05, 0x02, 0x06, 0x02, 0x02, 0x02,
+        // Next line is included in the test data shown in RFC 8448, but these are using DSA
+        // as a signature algorithm, which RFC 8446 (TLS 1.3) deprecates. We ignore it here.
+        //
+        // https://www.rfc-editor.org/rfc/rfc8446#section-4.2.3
+        //
+        // > In particular, MD5 [SLOTH], SHA-224, and DSA MUST NOT be used.
+        // 0x04, 0x02, 0x05, 0x02, 0x06, 0x02, 0x02, 0x02,
 
         // psk_key_exchange_modes extension
         0x00, 0x2d,
@@ -196,65 +207,59 @@ test "ClientHello decode" {
         .{ 0x13, 0x02 },
     }, got.cipher_suites.data.items);
     try std.testing.expectEqualSlices(u8, &[_]u8{0x00}, got.legacy_compression_methods.data.items);
+
     try std.testing.expectEqual(@as(usize, 9), got.extensions.data.items.len);
 
     const ext1 = got.extensions.data.items[0];
-    try std.testing.expectEqual(ExtensionType.server_name, ext1.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x00, 0x09, 0x00, 0x00, 0x06, 0x73, 0x65, 0x72, 0x76,
-        0x65, 0x72,
-    }, ext1.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.server_name, ext1);
+    const server_name_list = ext1.server_name.server_name_list.data.items;
+    try std.testing.expectEqual(@as(usize, 1), server_name_list.len);
+    try std.testing.expectEqualSlices(u8, &.{ 0x73, 0x65, 0x72, 0x76, 0x65, 0x72 }, server_name_list[0].host_name.data.items);
 
     const ext2 = got.extensions.data.items[1];
-    try std.testing.expectEqual(ExtensionType.renegotiation_info, ext2.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{0x00}, ext2.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.renegotiation_info, ext2);
+    try std.testing.expectEqualSlices(u8, &[_]u8{}, ext2.renegotiation_info.renegotiated_connection.data.items);
 
     const ext3 = got.extensions.data.items[2];
-    try std.testing.expectEqual(ExtensionType.supported_groups, ext3.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x00, 0x12, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18,
-        0x00, 0x19, 0x01, 0x00, 0x01, 0x01, 0x01, 0x02,
-        0x01, 0x03, 0x01, 0x04,
-    }, ext3.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.supported_groups, ext3);
+    try std.testing.expectEqualSlices(supported_groups.NamedGroup, &.{
+        .x25519, .secp256r1, .secp384r1, .secp521r1, .ffdhe2048, .ffdhe3072, .ffdhe4096, .ffdhe6144, .ffdhe8192,
+    }, ext3.supported_groups.named_group_list.data.items);
 
     const ext4 = got.extensions.data.items[3];
-    try std.testing.expectEqual(ExtensionType.session_ticket, ext4.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{}, ext4.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.session_ticket, ext4);
+    try std.testing.expectEqualSlices(u8, &.{}, ext4.session_ticket.ticket.items);
 
     const ext5 = got.extensions.data.items[4];
-    try std.testing.expectEqual(ExtensionType.key_share, ext5.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x00, 0x24, 0x00, 0x1d, 0x00, 0x20, 0x99, 0x38,
-        0x1d, 0xe5, 0x60, 0xe4, 0xbd, 0x43, 0xd2, 0x3d,
-        0x8e, 0x43, 0x5a, 0x7d, 0xba, 0xfe, 0xb3, 0xc0,
-        0x6e, 0x51, 0xc1, 0x3c, 0xae, 0x4d, 0x54, 0x13,
-        0x69, 0x1e, 0x52, 0x9a, 0xaf, 0x2c,
-    }, ext5.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.key_share, ext5);
+    const client_shares = ext5.key_share.client_shares.data.items;
+    try std.testing.expectEqual(@as(usize, 1), client_shares.len);
+    try std.testing.expectEqual(supported_groups.NamedGroup.x25519, client_shares[0].group);
+    try std.testing.expectEqualSlices(u8, &.{
+        0x99, 0x38, 0x1d, 0xe5, 0x60, 0xe4, 0xbd, 0x43,
+        0xd2, 0x3d, 0x8e, 0x43, 0x5a, 0x7d, 0xba, 0xfe,
+        0xb3, 0xc0, 0x6e, 0x51, 0xc1, 0x3c, 0xae, 0x4d,
+        0x54, 0x13, 0x69, 0x1e, 0x52, 0x9a, 0xaf, 0x2c,
+    }, client_shares[0].key_exchange.data.items);
 
     const ext6 = got.extensions.data.items[5];
-    try std.testing.expectEqual(ExtensionType.supported_versions, ext6.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x02, 0x03, 0x04,
-    }, ext6.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.supported_versions, ext6);
+    try std.testing.expectEqualSlices(supported_versions.ProtocolVersion, &.{0x0304}, ext6.supported_versions.versions.data.items);
 
     const ext7 = got.extensions.data.items[6];
-    try std.testing.expectEqual(ExtensionType.signature_algorithms, ext7.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x00, 0x1e, 0x04, 0x03, 0x05, 0x03, 0x06, 0x03,
-        0x02, 0x03, 0x08, 0x04, 0x08, 0x05, 0x08, 0x06,
-        0x04, 0x01, 0x05, 0x01, 0x06, 0x01, 0x02, 0x01,
-        0x04, 0x02, 0x05, 0x02, 0x06, 0x02, 0x02, 0x02,
-    }, ext7.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.signature_algorithms, ext7);
+    try std.testing.expectEqualSlices(signature_algorithms.SignatureScheme, &.{
+        .ecdsa_secp256r1_sha256, .ecdsa_secp384r1_sha384, .ecdsa_secp521r1_sha512,
+        .ecdsa_sha1,             .rsa_pss_rsae_sha256,    .rsa_pss_rsae_sha384,
+        .rsa_pss_rsae_sha512,    .rsa_pkcs1_sha256,       .rsa_pkcs1_sha384,
+        .rsa_pkcs1_sha512,       .rsa_pkcs1_sha1,
+    }, ext7.signature_algorithms.supported_signature_algorithms.data.items);
 
     const ext8 = got.extensions.data.items[7];
-    try std.testing.expectEqual(ExtensionType.psk_key_exchange_modes, ext8.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x01, 0x01,
-    }, ext8.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.psk_key_exchange_modes, ext8);
+    try std.testing.expectEqualSlices(psk_key_exchange_modes.PskKeyExchangeMode, &.{.psk_dhe_ke}, ext8.psk_key_exchange_modes.ke_modes.data.items);
 
     const ext9 = got.extensions.data.items[8];
-    try std.testing.expectEqual(ExtensionType.record_size_limit, ext9.extension_type);
-    try std.testing.expectEqualSlices(u8, &[_]u8{
-        0x40, 0x01,
-    }, ext9.extension_data.data.items);
+    try std.testing.expectEqual(ExtensionType.record_size_limit, ext9);
+    try std.testing.expectEqual(@as(u16, 0x4001), ext9.record_size_limit.record_size_limit);
 }

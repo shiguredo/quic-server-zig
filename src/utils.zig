@@ -1,5 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
+const meta = std.meta;
 const builtin = std.builtin;
 
 /// Calculates how many bytes a value of type `T` takes in the memory.
@@ -95,16 +96,9 @@ test "declarations" {
     }
 }
 
+/// Returns true if the given type `T` has a public `deinit` method.
 pub fn hasDeinit(comptime T: type) bool {
-    if (comptime declarations(T)) |decls| {
-        inline for (decls) |decl| {
-            if (comptime mem.eql(u8, decl.name, "deinit")) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    return meta.trait.hasFn("deinit")(T);
 }
 
 test "hasDeinit" {
@@ -115,15 +109,27 @@ test "hasDeinit" {
     try std.testing.expect(!hasDeinit(struct {}));
     try std.testing.expect(!hasDeinit(enum {}));
     try std.testing.expect(!hasDeinit(union {}));
+    try std.testing.expect(!hasDeinit(struct {
+        // private `deinit` is ignored
+        fn deinit() void {}
+    }));
+    try std.testing.expect(!hasDeinit(enum {
+        // private `deinit` is ignored
+        fn deinit() void {}
+    }));
+    try std.testing.expect(!hasDeinit(union {
+        // private `deinit` is ignored
+        fn deinit() void {}
+    }));
 
     try std.testing.expect(hasDeinit(struct {
-        fn deinit() void {}
+        pub fn deinit() void {}
     }));
     try std.testing.expect(hasDeinit(enum {
-        fn deinit() void {}
+        pub fn deinit() void {}
     }));
     try std.testing.expect(hasDeinit(union {
-        fn deinit() void {}
+        pub fn deinit() void {}
     }));
     try std.testing.expect(hasDeinit(std.ArrayList(u8)));
 }

@@ -178,22 +178,22 @@ const Foo = struct {
 
     const Self = @This();
 
-    fn encodedLength(self: Self) usize {
+    pub fn encodedLength(self: Self) usize {
         return utils.sizeOf(u8) * self.data.items.len;
     }
 
-    fn encode(self: Self, out: *Bytes) !void {
+    pub fn encode(self: Self, out: *Bytes) !void {
         try out.putBytes(self.data.items);
     }
 
-    fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
+    pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         const len = in.buf.len;
         const all = try in.consumeBytesOwned(allocator, len);
         errdefer all.deinit();
         return Self{ .data = all };
     }
 
-    fn deinit(self: Self) void {
+    pub fn deinit(self: Self) void {
         self.data.deinit();
     }
 };

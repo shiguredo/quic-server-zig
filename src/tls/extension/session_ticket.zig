@@ -65,6 +65,20 @@ test "encode SessionTicket" {
     try std.testing.expectEqualSlices(u8, &.{ 0x00, 0x01 }, out.split().former.buf);
 }
 
+test "encode empty SessionTicket" {
+    const ticket = SessionTicket{
+        .ticket = ArrayList(u8).init(std.testing.allocator),
+    };
+    defer ticket.deinit();
+
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+
+    try ticket.encode(&out);
+
+    try std.testing.expectEqualSlices(u8, &.{}, out.split().former.buf);
+}
+
 test "decode SessionTicket" {
     var buf = [_]u8{ 0x00, 0x01 };
     var in = Bytes{ .buf = &buf };
@@ -73,4 +87,14 @@ test "decode SessionTicket" {
     defer got.deinit();
 
     try std.testing.expectEqualSlices(u8, &.{ 0x00, 0x01 }, got.ticket.items);
+}
+
+test "decode empty SessionTicket" {
+    var buf = [_]u8{};
+    var in = Bytes{ .buf = &buf };
+
+    const got = try SessionTicket.decode(std.testing.allocator, &in);
+    defer got.deinit();
+
+    try std.testing.expectEqualSlices(u8, &.{}, got.ticket.items);
 }

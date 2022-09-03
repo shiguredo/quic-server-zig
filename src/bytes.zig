@@ -15,7 +15,7 @@ pub const Bytes = struct {
     const Self = @This();
     pub const Error = error{
         BufferTooShort,
-        NoMoreData,
+        OutOfRange,
     };
 
     /// Returns the number of remaining bytes in the buffer.
@@ -87,8 +87,8 @@ pub const Bytes = struct {
     /// Reads bytes until the end of the buffer without advancing the position,
     /// and returns the bytes as a slice without allocating any additional memory.
     pub fn peekBytesUntilEnd(self: Self) ![]u8 {
-        if (self.pos >= self.buf.len)
-            return Error.NoMoreData;
+        if (self.pos > self.buf.len)
+            return Error.OutOfRange;
 
         return self.buf[self.pos..];
     }
@@ -274,8 +274,8 @@ test "peekBytesUntilEnd, consumeBytesUntilEnd" {
 
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01, 0x02 }, try b.peekBytesUntilEnd());
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01, 0x02 }, try b.consumeBytesUntilEnd());
-    try std.testing.expectError(error.NoMoreData, b.peekBytesUntilEnd());
-    try std.testing.expectError(error.NoMoreData, b.consumeBytesUntilEnd());
+    try std.testing.expectEqualSlices(u8, &[_]u8{}, try b.peekBytesUntilEnd());
+    try std.testing.expectEqualSlices(u8, &[_]u8{}, try b.consumeBytesUntilEnd());
 }
 
 test "Bytes parse variable-length integer" {

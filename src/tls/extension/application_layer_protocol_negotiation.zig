@@ -1,6 +1,6 @@
 const std = @import("std");
-const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
-const Bytes = @import("./bytes.zig").Bytes;
+const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
+const Bytes = @import("../../bytes.zig").Bytes;
 
 pub const ProtocolNames = VariableLengthVector(ProtocolName, 65535);
 

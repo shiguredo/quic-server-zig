@@ -23,6 +23,12 @@ pub const Bytes = struct {
         return self.buf.len - self.pos;
     }
 
+    /// Returns true if all data in the buffer have already been read, or the buffer is
+    /// full of written data.
+    pub fn reachedEnd(self: Self) bool {
+        return self.remainingCapacity() == 0;
+    }
+
     /// Reads an integer of type `T` from the current position of the buffer,
     /// assuming it's represented in network byte order.
     /// It does NOT advance the position.
@@ -255,6 +261,7 @@ test "Bytes peek, consume" {
 
     try std.testing.expectError(Bytes.Error.BufferTooShort, b.peek(u8));
     try std.testing.expectError(Bytes.Error.BufferTooShort, b.consume(u8));
+    try std.testing.expect(b.reachedEnd());
 }
 
 test "consumeBytes" {
@@ -265,6 +272,7 @@ test "consumeBytes" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01 }, try b.consumeBytes(2));
     try std.testing.expectEqualSlices(u8, &[_]u8{0x02}, try b.consumeBytes(1));
     try std.testing.expectError(Bytes.Error.BufferTooShort, b.consumeBytes(1));
+    try std.testing.expect(b.reachedEnd());
 }
 
 test "peekBytesUntilEnd, consumeBytesUntilEnd" {
@@ -276,6 +284,7 @@ test "peekBytesUntilEnd, consumeBytesUntilEnd" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01, 0x02 }, try b.consumeBytesUntilEnd());
     try std.testing.expectEqualSlices(u8, &[_]u8{}, try b.peekBytesUntilEnd());
     try std.testing.expectEqualSlices(u8, &[_]u8{}, try b.consumeBytesUntilEnd());
+    try std.testing.expect(b.reachedEnd());
 }
 
 test "Bytes parse variable-length integer" {

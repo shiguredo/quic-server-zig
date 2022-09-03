@@ -3,7 +3,7 @@ const mem = std.mem;
 const meta = std.meta;
 const ArrayList = std.ArrayList;
 const BoundedArray = std.BoundedArray;
-const bytes = @import("./bytes.zig");
+const bytes = @import("../../bytes.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-transport-parameter-encodin
 ///

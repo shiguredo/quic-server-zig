@@ -7,6 +7,7 @@ const Aes128 = crypto.core.aes.Aes128;
 const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("./bytes.zig").Bytes;
+const utils = @import("../utils.zig");
 
 const EndpointKind = enum {
     server,
@@ -159,7 +160,7 @@ const HkdfLabel = struct {
         var len: usize = 0;
         for (@typeInfo(Self).Struct.fields) |field| {
             len += if (@typeInfo(field.field_type) == .Int)
-                @sizeOf(field.field_type)
+                utils.sizeOf(field.field_type)
             else
                 @field(self, field.name).encodedLength();
         }

@@ -1,6 +1,7 @@
 const std = @import("std");
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 pub const ProtocolVersion = u16;
 pub const Versions = VariableLengthVector(ProtocolVersion, 254);
@@ -24,7 +25,7 @@ pub const ServerSupportedVersions = struct {
 
     pub fn encodedLength(self: Self) usize {
         _ = self;
-        return @sizeOf(ProtocolVersion);
+        return utils.sizeOf(ProtocolVersion);
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {

@@ -2,6 +2,7 @@ const std = @import("std");
 const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 const KeModes = VariableLengthVector(PskKeyExchangeMode, 255);
 
@@ -73,7 +74,7 @@ pub const PskKeyExchangeMode = enum(u8) {
 
     pub fn encodedLength(self: Self) usize {
         _ = self;
-        return @sizeOf(TagType);
+        return utils.sizeOf(TagType);
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {

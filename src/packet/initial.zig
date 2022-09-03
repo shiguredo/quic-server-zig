@@ -9,6 +9,7 @@ const crypto = @import("../crypto.zig");
 const Aes128 = std.crypto.core.aes.Aes128;
 const Frame = @import("../frame/frame.zig").Frame;
 const FrameType = @import("../frame/frame.zig").FrameType;
+const utils = @import("../utils.zig");
 
 /// An Initial Packet
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-initial-packet
@@ -58,7 +59,7 @@ pub const Initial = struct {
     /// Decodes the input bytes, assuming that the bytes are coming from a client, not from a server.
     pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, first_byte: u8, version: u32) !Self {
         // Ensure that `bs` has read the first byte (u8) and the version information (u32)
-        std.debug.assert(bs.pos == @sizeOf(u8) + @sizeOf(u32));
+        std.debug.assert(bs.pos == utils.sizeOf(u8) + utils.sizeOf(u32));
 
         const dcid_len = try bs.consume(u8);
         log.debug("destination connection id length: {}\n", .{dcid_len});

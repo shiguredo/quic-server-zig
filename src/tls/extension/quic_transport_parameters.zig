@@ -4,6 +4,7 @@ const meta = std.meta;
 const ArrayList = std.ArrayList;
 const BoundedArray = std.BoundedArray;
 const bytes = @import("../../bytes.zig");
+const utils = @import("../../utils.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-transport-parameter-encodin
 ///
@@ -582,7 +583,13 @@ pub const PreferredAddress = struct {
     const ConnectionId = BoundedArray(u8, 255);
 
     pub fn encodedLength(self: Self) usize {
-        return @sizeOf([4]u8) + @sizeOf(u16) + @sizeOf([16]u8) + @sizeOf(u16) + self.connection_id.len + @sizeOf([16]u8);
+        return 4 * utils.sizeOf(u8) + // IPv4 Address
+            utils.sizeOf(u16) + // IPv4 Port
+            16 * utils.sizeOf(u8) + // IPv6 Address
+            utils.sizeOf(u16) + // IPv6 Port
+            utils.sizeOf(u8) + // Connection ID Length
+            self.connection_id.len + // Connection ID
+            16 * utils.sizeOf(u16); // Stateless Reset Token
     }
 
     pub fn encode(self: Self, out: *bytes.Bytes) !void {

@@ -1,6 +1,7 @@
 const std = @import("std");
 const ClientHello = @import("./client_hello.zig").ClientHello;
 const Bytes = @import("../bytes.zig").Bytes;
+const utils = @import("../utils.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3
 ///
@@ -109,8 +110,8 @@ pub const Handshake = union(HandshakeType) {
 
     pub fn encodedLength(self: Self) usize {
         var len: usize = 0;
-        len += @sizeOf(@typeInfo(HandshakeType).Enum.tag_type);
-        len += @sizeOf(u24);
+        len += utils.sizeOf(HandshakeType.TagType);
+        len += utils.sizeOf(u24);
         len += switch (self) {
             .client_hello => |ch| ch.encodedLength(),
             // TODO(magurotuna): implement

@@ -4,6 +4,7 @@ const VariableLengthVector = @import("../variable_length_vector.zig").VariableLe
 const Bytes = @import("../bytes.zig").Bytes;
 const Extension = @import("./extension.zig").Extension;
 const ExtensionType = @import("./extension.zig").ExtensionType;
+const utils = @import("../utils.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3.1
 ///
@@ -42,8 +43,8 @@ pub const ClientHello = struct {
 
     pub fn encodedLength(self: Self) usize {
         var len: usize = 0;
-        len += @sizeOf(ProtocolVersion);
-        len += @sizeOf(Random);
+        len += utils.sizeOf(ProtocolVersion);
+        len += utils.sizeOf(Random);
         len += self.legacy_session_id.encodedLength();
         len += self.cipher_suites.encodedLength();
         len += self.legacy_compression_methods.encodedLength();

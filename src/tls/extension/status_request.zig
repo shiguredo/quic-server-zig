@@ -2,6 +2,7 @@ const std = @import("std");
 const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc6066.html#section-8
 ///
@@ -18,7 +19,7 @@ pub const CertificateStatusRequest = union(CertificateStatusType) {
 
     pub fn encodedLength(self: Self) usize {
         var len: usize = 0;
-        len += @sizeOf(CertificateStatusType.TagType);
+        len += utils.sizeOf(CertificateStatusType.TagType);
         len += switch (self) {
             .ocsp => |o| o.encodedLength(),
         };

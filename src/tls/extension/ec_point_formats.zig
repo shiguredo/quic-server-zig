@@ -1,6 +1,7 @@
 const std = @import("std");
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc8422.html#section-5.1
 ///
@@ -90,7 +91,7 @@ pub const ECPointFormat = enum {
 
     pub fn encodedLength(self: Self) usize {
         _ = self;
-        return @sizeOf(TagType);
+        return utils.sizeOf(TagType);
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {

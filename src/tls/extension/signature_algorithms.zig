@@ -2,6 +2,7 @@ const std = @import("std");
 const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 pub const SupportedSignatureAlgorithms = VariableLengthVector(SignatureScheme, 65534);
 
@@ -139,7 +140,7 @@ pub const SignatureScheme = enum(u16) {
 
     pub fn encodedLength(self: Self) usize {
         _ = self;
-        return @sizeOf(TagType);
+        return utils.sizeOf(TagType);
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {

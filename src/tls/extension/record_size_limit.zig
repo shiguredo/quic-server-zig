@@ -1,6 +1,7 @@
 const std = @import("std");
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc8449#section-4
 ///
@@ -15,7 +16,7 @@ pub const RecordSizeLimit = struct {
 
     pub fn encodedLength(self: Self) usize {
         _ = self;
-        return @sizeOf(Limit);
+        return utils.sizeOf(Limit);
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {

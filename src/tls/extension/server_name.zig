@@ -2,6 +2,7 @@ const std = @import("std");
 const meta = std.meta;
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
+const utils = @import("../../utils.zig");
 
 pub const ServerNames = VariableLengthVector(ServerName, 65535);
 pub const HostName = VariableLengthVector(u8, 65535);
@@ -102,7 +103,7 @@ pub const ServerName = union(NameType) {
     const Self = @This();
 
     pub fn encodedLength(self: Self) usize {
-        return @sizeOf(NameType.TagType) + switch (self) {
+        return utils.sizeOf(NameType.TagType) + switch (self) {
             .host_name => |h| h.encodedLength(),
         };
     }

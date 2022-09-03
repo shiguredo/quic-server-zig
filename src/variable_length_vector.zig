@@ -62,8 +62,8 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
 
             decode_items: while (true) {
                 const item = decodeInner(T, allocator, &new_bytes) catch |e| {
-                    // In case of `error.BufferTooShort` it indicates all data have been decoded.
-                    if (e == error.BufferTooShort)
+                    // In case of `BufferTooShort` it indicates all data have been decoded.
+                    if (e == Bytes.Error.BufferTooShort)
                         break :decode_items;
 
                     return e;

@@ -13,7 +13,7 @@ pub const Bytes = struct {
     pos: usize = 0,
 
     const Self = @This();
-    const Error = error{
+    pub const Error = error{
         BufferTooShort,
         NoMoreData,
     };
@@ -253,8 +253,8 @@ test "Bytes peek, consume" {
     try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.peek(u16));
     try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.consume(u16));
 
-    try std.testing.expectError(error.BufferTooShort, b.peek(u8));
-    try std.testing.expectError(error.BufferTooShort, b.consume(u8));
+    try std.testing.expectError(Bytes.Error.BufferTooShort, b.peek(u8));
+    try std.testing.expectError(Bytes.Error.BufferTooShort, b.consume(u8));
 }
 
 test "consumeBytes" {
@@ -264,7 +264,7 @@ test "consumeBytes" {
 
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x01 }, try b.consumeBytes(2));
     try std.testing.expectEqualSlices(u8, &[_]u8{0x02}, try b.consumeBytes(1));
-    try std.testing.expectError(error.BufferTooShort, b.consumeBytes(1));
+    try std.testing.expectError(Bytes.Error.BufferTooShort, b.consumeBytes(1));
 }
 
 test "peekBytesUntilEnd, consumeBytesUntilEnd" {
@@ -341,7 +341,7 @@ test "Bytes putBytes" {
     var buf: [3]u8 = undefined;
     var b = Bytes{ .buf = &buf };
 
-    try std.testing.expectError(error.BufferTooShort, b.putBytes(&[_]u8{ 0x01, 0x02, 0x03, 0x04 }));
+    try std.testing.expectError(Bytes.Error.BufferTooShort, b.putBytes(&[_]u8{ 0x01, 0x02, 0x03, 0x04 }));
 
     try b.putBytes(&[_]u8{ 0x01, 0x02, 0x03 });
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x01, 0x02, 0x03 }, &buf);

@@ -151,8 +151,8 @@ pub const Initial = struct {
 
             decode_frames: while (true) {
                 const f = Frame.decode(allocator, &buf) catch |e| {
-                    // In case of `error.BufferTooShort` it indicates all frames have been decoded.
-                    if (e == error.BufferTooShort)
+                    // In case of `BufferTooShort` it indicates all frames have been decoded.
+                    if (e == Bytes.Error.BufferTooShort)
                         break :decode_frames;
 
                     return e;

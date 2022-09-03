@@ -209,8 +209,8 @@ pub const TransportParameter = union(TransportParameterId) {
     /// https://www.rfc-editor.org/rfc/rfc9000.html#name-transport-parameter-definit
     ///
     /// > The disable active migration transport parameter is included if the endpoint does not
-    /// > support active connection migration on the address being used during the handshake. 
-    /// 
+    /// > support active connection migration on the address being used during the handshake.
+    ///
     /// [Conenction Migration]: https://www.rfc-editor.org/rfc/rfc9000.html#migration
     ///
     /// >  This parameter is a zero-length value.

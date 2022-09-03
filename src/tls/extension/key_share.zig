@@ -7,7 +7,7 @@ const ClientShares = VariableLengthVector(KeyShareEntry, 65535);
 const KeyExchange = VariableLengthVector(u8, 65535);
 
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8
-/// 
+///
 /// > In the ClientHello message, the "extension_data" field of this extension
 /// > contains a "KeyShareClientHello" value:
 ///
@@ -81,7 +81,7 @@ test "decode KeyShareClientHello" {
 }
 
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8
-/// 
+///
 /// > In a ServerHello message, the "extension_data" field of this
 /// > extension contains a KeyShareServerHello value:
 ///

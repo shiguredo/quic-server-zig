@@ -60,14 +60,8 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
             // Create new `Bytes` that only views the range being decoded as a `VariableLengthVector`.
             var new_bytes = Bytes{ .buf = try in.consumeBytes(len) };
 
-            decode_items: while (true) {
-                const item = decodeInner(T, allocator, &new_bytes) catch |e| {
-                    // In case of `BufferTooShort` it indicates all data have been decoded.
-                    if (e == Bytes.Error.BufferTooShort)
-                        break :decode_items;
-
-                    return e;
-                };
+            while (!new_bytes.reachedEnd()) {
+                const item = try decodeInner(T, allocator, &new_bytes);
                 errdefer {
                     if (comptime utils.hasDeinit(T)) item.deinit();
                 }

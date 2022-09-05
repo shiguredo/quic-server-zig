@@ -43,6 +43,28 @@ pub const Bytes = struct {
         return mem.readIntBig(T, rest[0..utils.sizeOf(T)]);
     }
 
+    /// Reads two integers of type `T1` and then `T2` from the current position of the buffer,
+    /// assuming they are represented in network byte order.
+    /// It does NOT advance the position.
+    pub fn peek2(self: Self, comptime T1: type, comptime T2: type) Error!struct { first: T1, second: T2 } {
+        if (@typeInfo(T1) != .Int)
+            @compileError("type `T1` must be of integer, but got `" ++ @typeName(T1) ++ "`");
+
+        if (@typeInfo(T2) != .Int)
+            @compileError("type `T2` must be of integer, but got `" ++ @typeName(T2) ++ "`");
+
+        const rest = self.buf[self.pos..];
+        if (rest.len < utils.sizeOf(T1) + utils.sizeOf(T2))
+            return Error.BufferTooShort;
+
+        const s1 = utils.sizeOf(T1);
+        const s2 = utils.sizeOf(T2);
+        return .{
+            .first = mem.readIntBig(T1, rest[0..s1]),
+            .second = mem.readIntBig(T2, rest[s1..(s1 + s2)]),
+        };
+    }
+
     /// Reads an integer of type `T` from the current position of the buffer,
     /// assuming it's represented in network byte order.
     /// It DOES advance the position.
@@ -255,6 +277,9 @@ test "Bytes peek, consume" {
     var b = Bytes{ .buf = &buf };
 
     try std.testing.expectEqual(@as(u8, 0), try b.peek(u8));
+    const peek2_res = try b.peek2(u16, u8);
+    try std.testing.expectEqual(@as(u16, 1), peek2_res.first);
+    try std.testing.expectEqual(@as(u8, 2), peek2_res.second);
     try std.testing.expectEqual(@as(u8, 0), try b.consume(u8));
     try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.peek(u16));
     try std.testing.expectEqual(mem.readIntBig(u16, &[_]u8{ 0x01, 0x02 }), try b.consume(u16));

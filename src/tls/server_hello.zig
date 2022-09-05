@@ -71,3 +71,32 @@ pub const ServerHello = struct {
         self.extensions.deinit();
     }
 };
+
+test "encode Server Hello" {
+    const sh = ServerHello{
+        .random = .{0x42} ** 32,
+        .legacy_session_id_echo = try ServerHello.LegacySessionId.fromSlice(std.testing.allocator, &.{0x01}),
+        .cipher_suite = .{ 0x01, 0x02 },
+        .extensions = try ServerHello.Extensions.fromSlice(std.testing.allocator, &.{}),
+    };
+    defer sh.deinit();
+
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+
+    try sh.encode(&out);
+
+    // zig fmt: off
+    try std.testing.expectEqualSlices(u8, &.{
+        0x03, 0x03,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x01, 0x01,
+        0x01, 0x02,
+        0x00,
+        0x00, 0x00,
+    }, out.split().former.buf);
+    // zig fmt: on
+}

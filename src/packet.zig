@@ -45,9 +45,9 @@ pub const Packet = union(PacketType) {
 
     const Self = @This();
 
-    pub fn decode(allocator: std.mem.Allocator, buf: []u8, destination_connection_id_length: usize) !Self {
+    pub fn fromBytes(allocator: std.mem.Allocator, buf: []u8) !Self {
         var bs = Bytes{ .buf = buf };
-        return fromBytes(allocator, &bs, destination_connection_id_length);
+        return decode(allocator, &bs);
     }
 
     pub fn deinit(self: Self) void {
@@ -66,16 +66,27 @@ pub const Packet = union(PacketType) {
         }
     }
 
-    fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, destination_connection_id_length: usize) !Self {
-        const first = try bs.consume(u8);
+    pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
+        // Ensure that `in` has not been consumed yet.
+        std.debug.assert(in.pos == 0);
 
-        if (!isLongHeader(first)) {
-            _ = destination_connection_id_length;
-            // TODO(magurotuna): decode as OneRTT packet
-            return error.Unimplemented;
+        const first_byte = try in.peek(u8);
+        if (isLongHeader(first_byte)) {
+            return decodeAsLongHeaderPacket(allocator, in);
+        } else {
+            // For now, we use the max Conenction ID length as our local Connection ID length.
+            return decodeAsShortHeaderPacket(allocator, in, max_cid_len);
         }
+    }
 
-        const ver = try bs.consume(u32);
+    fn decodeAsLongHeaderPacket(allocator: std.mem.Allocator, in: *Bytes) !Self {
+        // Ensure that `in` has not been consumed yet.
+        std.debug.assert(in.pos == 0);
+
+        const first_and_version = try in.peek2(u8, u32);
+        const first = first_and_version.first;
+        const ver = first_and_version.second;
+
         const packet_type = if (ver == 0)
             PacketType.version_negotiation
         else switch ((first & packet_type_mask) >> 4) {
@@ -87,7 +98,7 @@ pub const Packet = union(PacketType) {
         };
 
         return switch (packet_type) {
-            .initial => .{ .initial = try Initial.fromBytes(allocator, bs, first, ver) },
+            .initial => .{ .initial = try Initial.decode(allocator, in) },
             // TODO(magurotuna)
             .zero_rtt => error.Unimplemented,
             // TODO(magurotuna)
@@ -98,6 +109,17 @@ pub const Packet = union(PacketType) {
             .version_negotiation => error.Unimplemented,
             .one_rtt => unreachable,
         };
+    }
+
+    fn decodeAsShortHeaderPacket(allocator: std.mem.Allocator, in: *Bytes, destination_connection_id_length: usize) !Self {
+        // Ensure that `in` has not been consumed yet.
+        std.debug.assert(in.pos == 0);
+
+        _ = allocator;
+        _ = destination_connection_id_length;
+
+        // TODO(magurotuna): implement decoding as OneRTT packet
+        return error.Unimplemented;
     }
 };
 

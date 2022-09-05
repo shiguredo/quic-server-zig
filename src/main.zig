@@ -21,9 +21,7 @@ pub fn main() !void {
             std.fmt.fmtSliceHexLower(buf[0..recv.num_bytes]),
         });
 
-        // TODO(magurotuna): set correct value
-        const dummy_dcid_len = 9;
-        const decoded = try Packet.decode(allocator, buf[0..recv.num_bytes], dummy_dcid_len);
+        const decoded = try Packet.fromBytes(allocator, buf[0..recv.num_bytes]);
         defer decoded.deinit();
 
         std.log.info("received packet:\n{}\n", .{decoded});

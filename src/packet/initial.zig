@@ -57,37 +57,40 @@ pub const Initial = struct {
     const Self = @This();
 
     /// Decodes the input bytes, assuming that the bytes are coming from a client, not from a server.
-    pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, first_byte: u8, version: u32) !Self {
-        // Ensure that `bs` has read the first byte (u8) and the version information (u32)
-        std.debug.assert(bs.pos == utils.sizeOf(u8) + utils.sizeOf(u32));
+    pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
+        // Ensure that `in` has not been consumed yet.
+        std.debug.assert(in.pos == 0);
 
-        const dcid_len = try bs.consume(u8);
+        const first_byte = try in.consume(u8);
+        const version = try in.consume(u32);
+
+        const dcid_len = try in.consume(u8);
         log.debug("destination connection id length: {}\n", .{dcid_len});
         if (isSupported(version) and dcid_len > max_cid_len)
             return error.InvalidPacket;
 
-        const dcid = try bs.consumeBytesOwned(allocator, dcid_len);
+        const dcid = try in.consumeBytesOwned(allocator, dcid_len);
         log.debug("destination connection id: {}\n", .{std.fmt.fmtSliceHexLower(dcid.items)});
         errdefer dcid.deinit();
 
-        const scid_len = try bs.consume(u8);
+        const scid_len = try in.consume(u8);
         log.debug("source connection id length: {}\n", .{scid_len});
         if (isSupported(version) and scid_len > max_cid_len)
             return error.InvalidPacket;
 
-        const scid = try bs.consumeBytesOwned(allocator, scid_len);
+        const scid = try in.consumeBytesOwned(allocator, scid_len);
         log.debug("source connection id: {}\n", .{std.fmt.fmtSliceHexLower(scid.items)});
         errdefer scid.deinit();
 
-        const token = try bs.consumeBytesOwnedWithVarIntLength(allocator);
+        const token = try in.consumeBytesOwnedWithVarIntLength(allocator);
         errdefer token.deinit();
 
-        const packet_number_and_payload = try bs.consumeBytesOwnedWithVarIntLength(allocator);
+        const packet_number_and_payload = try in.consumeBytesOwnedWithVarIntLength(allocator);
         defer packet_number_and_payload.deinit();
 
-        // The original byte stream `bs` might contain multiple QUIC packets. We want to decode
+        // The original byte stream `in` might contain multiple QUIC packets. We want to decode
         // one packet at the moment, so we create another `Bytes` that views only one packet we're focusing on.
-        var packet_bytes = Bytes{ .buf = bs.buf[0..bs.pos] };
+        var packet_bytes = Bytes{ .buf = in.buf[0..in.pos] };
         log.debug("packet bytes: {}\n", .{std.fmt.fmtSliceHexLower(packet_bytes.buf)});
 
         // https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-sample
@@ -353,9 +356,7 @@ test "decode Client Initial from RFC 9001" {
     // zig fmt: on
 
     var bs = Bytes{ .buf = &in };
-    const first = try bs.consume(u8);
-    const version = try bs.consume(u32);
-    const got = try Initial.fromBytes(std.testing.allocator, &bs, first, version);
+    const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
     // See if the header part is correctly decoded.
@@ -428,9 +429,7 @@ test "decode Client Initial from 'The Illustrated QUIC Connection'" {
     // zig fmt: on
 
     var bs = Bytes{ .buf = &in };
-    const first = try bs.consume(u8);
-    const version = try bs.consume(u32);
-    const got = try Initial.fromBytes(std.testing.allocator, &bs, first, version);
+    const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
     const quic_v1 = @import("../version.zig").quic_v1;
@@ -609,9 +608,7 @@ test "decode Client Initial from cloudflare/quiche" {
     // zig fmt: on
 
     var bs = Bytes{ .buf = &in };
-    const first = try bs.consume(u8);
-    const version = try bs.consume(u32);
-    const got = try Initial.fromBytes(std.testing.allocator, &bs, first, version);
+    const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
     const quic_v1 = @import("../version.zig").quic_v1;
@@ -797,9 +794,7 @@ test "decode Client Initial from aws/s2n-quic" {
     // zig fmt: on
 
     var bs = Bytes{ .buf = &in };
-    const first = try bs.consume(u8);
-    const version = try bs.consume(u32);
-    const got = try Initial.fromBytes(std.testing.allocator, &bs, first, version);
+    const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
     const quic_v1 = @import("../version.zig").quic_v1;

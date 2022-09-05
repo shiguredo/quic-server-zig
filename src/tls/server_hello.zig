@@ -25,7 +25,7 @@ pub const ServerHello = struct {
     const LegacySessionId = VariableLengthVector(u8, 32);
     const CipherSuite = [2]u8;
     const LegacyCompressionMethod = u8;
-    const Extensions = VariableLengthVector(Extension, 65535);
+    const Extensions = VariableLengthVector(Extension(.server), 65535);
 
     const legacy_version: ProtocolVersion = 0x0303;
     const legacy_compression_method: LegacyCompressionMethod = 0;

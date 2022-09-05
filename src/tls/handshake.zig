@@ -1,7 +1,8 @@
 const std = @import("std");
-const ClientHello = @import("./client_hello.zig").ClientHello;
 const Bytes = @import("../bytes.zig").Bytes;
 const utils = @import("../utils.zig");
+const ClientHello = @import("./client_hello.zig").ClientHello;
+const ServerHello = @import("./server_hello.zig").ServerHello;
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3
 ///
@@ -58,7 +59,6 @@ const Reserved = struct {};
 const NoContent = struct {};
 
 // TODO(magurotuna): implement these handshake message types
-pub const ServerHello = struct {};
 pub const EndOfEarlyData = struct {};
 pub const EncryptedExtensions = struct {};
 pub const Certificate = struct {};
@@ -114,6 +114,7 @@ pub const Handshake = union(HandshakeType) {
         len += utils.sizeOf(u24);
         len += switch (self) {
             .client_hello => |ch| ch.encodedLength(),
+            .server_hello => |sh| sh.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
         };
@@ -124,12 +125,14 @@ pub const Handshake = union(HandshakeType) {
         try out.put(HandshakeType.TagType, @enumToInt(self));
         try out.put(u24, @intCast(u24, switch (self) {
             .client_hello => |ch| ch.encodedLength(),
+            .server_hello => |sh| sh.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
         }));
 
         switch (self) {
-            .client_hello => |ch| ch.encode(out),
+            .client_hello => |ch| try ch.encode(out),
+            .server_hello => |sh| try sh.encode(out),
             // TODO(magurotuna): implement
             else => unreachable,
         }
@@ -141,6 +144,7 @@ pub const Handshake = union(HandshakeType) {
 
         return switch (@intToEnum(HandshakeType, ty)) {
             .client_hello => .{ .client_hello = try ClientHello.decode(allocator, in) },
+            .server_hello => .{ .server_hello = try ServerHello.decode(allocator, in) },
             // TODO(magurotuna): implement
             else => unreachable,
         };
@@ -149,6 +153,7 @@ pub const Handshake = union(HandshakeType) {
     pub fn deinit(self: Self) void {
         switch (self) {
             .client_hello => |ch| ch.deinit(),
+            .server_hello => |sh| sh.deinit(),
             // TODO(magurotuna): implement
             else => unreachable,
         }

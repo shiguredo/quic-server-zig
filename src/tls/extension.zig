@@ -91,7 +91,7 @@ pub fn Extension(comptime endpoint_kind: enum { server, client }) type {
                 .renegotiation_info => |r| r.encodedLength(),
                 .unknown => 0,
                 // TODO(magurotuna): implement other extensions
-                else => return error.Unimplemented,
+                else => 0,
             };
             return len;
         }

@@ -9,6 +9,7 @@ pub fn main() !void {
     defer sock.deinit();
     var buf: [65536]u8 = undefined;
 
+    // TODO(magurotuna): it may be better to use the c_allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 

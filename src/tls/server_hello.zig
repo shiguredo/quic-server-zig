@@ -1,6 +1,7 @@
 const std = @import("std");
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../bytes.zig").Bytes;
+const CipherSuite = @import("./cipher_suite.zig").CipherSuite;
 const Extension = @import("./extension.zig").Extension;
 const utils = @import("../utils.zig");
 
@@ -23,7 +24,6 @@ pub const ServerHello = struct {
     const ProtocolVersion = u16;
     const Random = [32]u8;
     const LegacySessionId = VariableLengthVector(u8, 32);
-    const CipherSuite = [2]u8;
     const LegacyCompressionMethod = u8;
     const Extensions = VariableLengthVector(Extension(.server), 65535);
 
@@ -44,7 +44,7 @@ pub const ServerHello = struct {
         len += utils.sizeOf(ProtocolVersion);
         len += utils.sizeOf(Random);
         len += self.legacy_session_id_echo.encodedLength();
-        len += utils.sizeOf(CipherSuite);
+        len += self.cipher_suite.encodedLength();
         len += utils.sizeOf(@TypeOf(self.legacy_compression_method));
         len += self.extensions.encodedLength();
         return len;
@@ -54,7 +54,7 @@ pub const ServerHello = struct {
         try out.put(ProtocolVersion, self.legacy_version);
         try out.putBytes(&self.random);
         try self.legacy_session_id_echo.encode(out);
-        try out.putBytes(&self.cipher_suite);
+        try self.cipher_suite.encode(out);
         try out.put(LegacyCompressionMethod, self.legacy_compression_method);
         try self.extensions.encode(out);
     }
@@ -76,7 +76,7 @@ test "encode Server Hello" {
     const sh = ServerHello{
         .random = .{0x42} ** 32,
         .legacy_session_id_echo = try ServerHello.LegacySessionId.fromSlice(std.testing.allocator, &.{0x01}),
-        .cipher_suite = .{ 0x01, 0x02 },
+        .cipher_suite = .TLS_AES_128_GCM_SHA256,
         .extensions = try ServerHello.Extensions.fromSlice(std.testing.allocator, &.{}),
     };
     defer sh.deinit();
@@ -94,7 +94,7 @@ test "encode Server Hello" {
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
         0x01, 0x01,
-        0x01, 0x02,
+        0x13, 0x01,
         0x00,
         0x00, 0x00,
     }, out.split().former.buf);

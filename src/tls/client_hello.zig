@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../bytes.zig").Bytes;
+const CipherSuite = @import("./cipher_suite.zig").CipherSuite;
 const Extension = @import("./extension.zig").Extension;
 const ExtensionType = @import("./extension.zig").ExtensionType;
 const utils = @import("../utils.zig");
@@ -25,7 +26,6 @@ pub const ClientHello = struct {
     const ProtocolVersion = u16;
     const Random = [32]u8;
     const LegacySessionId = VariableLengthVector(u8, 32);
-    const CipherSuite = [2]u8;
     const CipherSuites = VariableLengthVector(CipherSuite, 65534);
     const LegacyCompressionMethods = VariableLengthVector(u8, 255);
     const Extensions = VariableLengthVector(Extension(.client), 65535);
@@ -201,10 +201,10 @@ test "ClientHello decode" {
         0xa2, 0xef, 0x62, 0x83, 0x02, 0x4d, 0xec, 0xe7,
     }, got.random);
     try std.testing.expectEqualSlices(u8, &[_]u8{}, got.legacy_session_id.data.items);
-    try std.testing.expectEqualSlices([2]u8, &.{
-        .{ 0x13, 0x01 },
-        .{ 0x13, 0x03 },
-        .{ 0x13, 0x02 },
+    try std.testing.expectEqualSlices(CipherSuite, &.{
+        .TLS_AES_128_GCM_SHA256,
+        .TLS_CHACHA20_POLY1305_SHA256,
+        .TLS_AES_256_GCM_SHA384,
     }, got.cipher_suites.data.items);
     try std.testing.expectEqualSlices(u8, &[_]u8{0x00}, got.legacy_compression_methods.data.items);
 

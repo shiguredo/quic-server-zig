@@ -1,12 +1,13 @@
 const std = @import("std");
 const Bytes = @import("./bytes.zig").Bytes;
 const crypto = @import("./crypto.zig");
-const Initial = @import("./packet/initial.zig").Initial;
-const ZeroRtt = @import("./packet/zero_rtt.zig").ZeroRtt;
-const Handshake = @import("./packet/handshake.zig").Handshake;
-const Retry = @import("./packet/retry.zig").Retry;
-const VersionNegotiation = @import("./packet/version_negotiation.zig").VersionNegotiation;
-const OneRtt = @import("./packet/one_rtt.zig").OneRtt;
+
+pub const Initial = @import("./packet/initial.zig").Initial;
+pub const ZeroRtt = @import("./packet/zero_rtt.zig").ZeroRtt;
+pub const Handshake = @import("./packet/handshake.zig").Handshake;
+pub const Retry = @import("./packet/retry.zig").Retry;
+pub const VersionNegotiation = @import("./packet/version_negotiation.zig").VersionNegotiation;
+pub const OneRtt = @import("./packet/one_rtt.zig").OneRtt;
 
 /// An enum to distinguish packet number spaces.
 /// https://datatracker.ietf.org/doc/html/rfc9000#section-12.3

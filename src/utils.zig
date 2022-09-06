@@ -9,7 +9,11 @@ const builtin = std.builtin;
 /// J
 /// For instance, `@sizeOf(u24)` returns `4` on 64 bit machines, while this returns `3`.
 pub fn sizeOf(comptime T: type) comptime_int {
-    return @divExact(@typeInfo(T).Int.bits, 8);
+    return switch (@typeInfo(T)) {
+        .Int => |i| @divExact(i.bits, 8),
+        .Array => |a| a.len * sizeOf(a.child),
+        else => @compileError("`sizeOf` only supports `Int` or `Array`"),
+    };
 }
 
 test "sizeOf" {
@@ -18,6 +22,10 @@ test "sizeOf" {
     try std.testing.expectEqual(3, sizeOf(u24));
     try std.testing.expectEqual(4, sizeOf(u32));
     try std.testing.expectEqual(8, sizeOf(u64));
+
+    try std.testing.expectEqual(3, sizeOf([3]u8));
+    try std.testing.expectEqual(4, sizeOf([2]u16));
+    try std.testing.expectEqual(6, sizeOf([2]u24));
 }
 
 /// Returns declarations that belong to the given type.

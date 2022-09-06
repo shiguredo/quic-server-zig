@@ -23,12 +23,12 @@ const utils = @import("../utils.zig");
 ///      Extension extensions<8..2^16-1>;
 /// } ClientHello;
 pub const ClientHello = struct {
-    const ProtocolVersion = u16;
-    const Random = [32]u8;
-    const LegacySessionId = VariableLengthVector(u8, 32);
-    const CipherSuites = VariableLengthVector(CipherSuite, 65534);
-    const LegacyCompressionMethods = VariableLengthVector(u8, 255);
-    const Extensions = VariableLengthVector(Extension(.client), 65535);
+    pub const ProtocolVersion = u16;
+    pub const Random = [32]u8;
+    pub const LegacySessionId = VariableLengthVector(u8, 32);
+    pub const CipherSuites = VariableLengthVector(CipherSuite, 65534);
+    pub const LegacyCompressionMethods = VariableLengthVector(u8, 255);
+    pub const Extensions = VariableLengthVector(Extension(.client), 65535);
 
     const legacy_version: ProtocolVersion = 0x0303;
 

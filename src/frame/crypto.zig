@@ -13,18 +13,17 @@ const tls_handshake = @import("../tls/handshake.zig");
 pub const Crypto = struct {
     frame_type: u64 = frame_type,
     offset: u64,
-    length: u64,
     // TODO(magurotuna): other types may be put here, but we assume only Handshake for now
     crypto_data: tls_handshake.Handshake,
 
     const Self = @This();
-    const frame_type = 0x06;
+    const frame_type: u64 = 0x06;
 
     pub fn encodedLength(self: Self) usize {
         var len: usize = 0;
         len += bytes.varIntLength(self.frame_type);
         len += bytes.varIntLength(self.offset);
-        len += bytes.varIntLength(self.length);
+        len += bytes.varIntLength(@intCast(u64, self.crypto_data.encodedLength()));
         len += self.crypto_data.encodedLength();
         return len;
     }
@@ -32,7 +31,7 @@ pub const Crypto = struct {
     pub fn encode(self: Self, out: *bytes.Bytes) !void {
         try out.putVarInt(self.frame_type);
         try out.putVarInt(self.offset);
-        try out.putVarInt(self.length);
+        try out.putVarInt(@intCast(u64, self.crypto_data.encodedLength()));
         try self.crypto_data.encode(out);
     }
 
@@ -47,7 +46,6 @@ pub const Crypto = struct {
 
         return Self{
             .offset = offset,
-            .length = length,
             .crypto_data = crypto_data,
         };
     }
@@ -99,7 +97,10 @@ test "decode CRYPTO frame" {
 
         const got = try Crypto.decode(std.testing.allocator, &in);
         defer got.deinit();
-        // TODO(magurotuna): add more assertions
+
+        try std.testing.expectEqual(Crypto.frame_type, got.frame_type);
+        try std.testing.expectEqual(@as(u64, 0), got.offset);
+        try std.testing.expect(got.crypto_data == .client_hello);
     }
 
     {
@@ -141,6 +142,9 @@ test "decode CRYPTO frame" {
 
         const got = try Crypto.decode(std.testing.allocator, &in);
         defer got.deinit();
-        // TODO(magurotuna): add more assertions
+
+        try std.testing.expectEqual(Crypto.frame_type, got.frame_type);
+        try std.testing.expectEqual(@as(u64, 0), got.offset);
+        try std.testing.expect(got.crypto_data == .client_hello);
     }
 }

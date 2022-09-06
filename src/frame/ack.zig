@@ -18,10 +18,10 @@ pub const Ack = struct {
     ack_delay: u64,
     first_ack_range: u64,
     ack_range: AckRanges,
-    ecn_counts: ?EcnCounts,
+    ecn_counts: ?EcnCounts = null,
 
     const Self = @This();
-    const AckRanges = ArrayList(AckRange);
+    pub const AckRanges = ArrayList(AckRange);
 
     /// https://www.rfc-editor.org/rfc/rfc9000.html#name-ack-frames
     /// > Receivers send ACK frames (types 0x02 and 0x03) to inform senders of packets they have

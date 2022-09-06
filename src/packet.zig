@@ -1,6 +1,7 @@
 const std = @import("std");
 const Bytes = @import("./bytes.zig").Bytes;
 const crypto = @import("./crypto.zig");
+const Frame = @import("./frame/frame.zig").Frame;
 
 pub const Initial = @import("./packet/initial.zig").Initial;
 pub const ZeroRtt = @import("./packet/zero_rtt.zig").ZeroRtt;
@@ -84,6 +85,57 @@ pub const Packet = union(PacketType) {
     pub fn destination_connection_id(self: Self) []const u8 {
         return switch (self) {
             .initial => |a| a.destination_connection_id.items,
+            // TODO(magurotuna)
+            .zero_rtt => unreachable,
+            // TODO(magurotuna)
+            .handshake => unreachable,
+            // TODO(magurotuna)
+            .retry => unreachable,
+            // TODO(magurotuna)
+            .version_negotiation => unreachable,
+            // TODO(magurotuna)
+            .one_rtt => unreachable,
+        };
+    }
+
+    /// Gets the Source Connection ID included in this packet, if any.
+    pub fn source_connection_id(self: Self) ?[]const u8 {
+        return switch (self) {
+            .initial => |a| a.source_connection_id.items,
+            // TODO(magurotuna)
+            .zero_rtt => unreachable,
+            // TODO(magurotuna)
+            .handshake => unreachable,
+            // TODO(magurotuna)
+            .retry => unreachable,
+            // TODO(magurotuna)
+            .version_negotiation => unreachable,
+            // TODO(magurotuna)
+            .one_rtt => unreachable,
+        };
+    }
+
+    /// Gets the Packet Number included in this packet.
+    pub fn packet_number(self: Self) u32 {
+        return switch (self) {
+            .initial => |a| a.packet_number,
+            // TODO(magurotuna)
+            .zero_rtt => unreachable,
+            // TODO(magurotuna)
+            .handshake => unreachable,
+            // TODO(magurotuna)
+            .retry => unreachable,
+            // TODO(magurotuna)
+            .version_negotiation => unreachable,
+            // TODO(magurotuna)
+            .one_rtt => unreachable,
+        };
+    }
+
+    /// Gets the payload included in this packet.
+    pub fn payload(self: Self) []const Frame {
+        return switch (self) {
+            .initial => |a| a.payload.items,
             // TODO(magurotuna)
             .zero_rtt => unreachable,
             // TODO(magurotuna)

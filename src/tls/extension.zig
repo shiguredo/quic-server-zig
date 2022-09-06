@@ -248,7 +248,7 @@ pub fn Extension(comptime endpoint_kind: enum { server, client }) type {
     };
 }
 
-test "encode Extension" {
+test "encode Extension (supported_versions)" {
     const ext = Extension(.server){
         .supported_versions = .{
             .selected_version = 0x00_01,
@@ -263,7 +263,47 @@ test "encode Extension" {
     try std.testing.expectEqualSlices(u8, &[_]u8{ 0x00, 0x2b, 0x00, 0x02, 0x00, 0x01 }, out.split().former.buf);
 }
 
-test "decode Extension" {
+test "encode Extension (key_share)" {
+    const KeyExchange = @import("../tls/extension/key_share.zig").KeyExchange;
+
+    const ext = Extension(.server){
+        .key_share = .{
+            .server_share = .{
+                .group = .x25519,
+                .key_exchange = try KeyExchange.fromSlice(std.testing.allocator, &.{
+                    0x9f, 0xd7, 0xad, 0x6d, 0xcf, 0xf4, 0x29, 0x8d,
+                    0xd3, 0xf9, 0x6d, 0x5b, 0x1b, 0x2a, 0xf9, 0x10,
+                    0xa0, 0x53, 0x5b, 0x14, 0x88, 0xd7, 0xf8, 0xfa,
+                    0xbb, 0x34, 0x9a, 0x98, 0x28, 0x80, 0xb6, 0x15,
+                }),
+            },
+        },
+    };
+    defer ext.deinit();
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+
+    try ext.encode(&out);
+
+    // zig fmt: off
+    try std.testing.expectEqualSlices(u8, &[_]u8{
+        // extension_type
+        0x00, 0x33,
+        // extension_data length
+        0x00, 0x24,
+        // group
+        0x00, 0x1d,
+        // key_exchange
+        0x00, 0x20,
+        0x9f, 0xd7, 0xad, 0x6d, 0xcf, 0xf4, 0x29, 0x8d,
+        0xd3, 0xf9, 0x6d, 0x5b, 0x1b, 0x2a, 0xf9, 0x10,
+        0xa0, 0x53, 0x5b, 0x14, 0x88, 0xd7, 0xf8, 0xfa,
+        0xbb, 0x34, 0x9a, 0x98, 0x28, 0x80, 0xb6, 0x15,
+    }, out.split().former.buf);
+    // zig fmt: on
+}
+
+test "decode Extension (supported_version)" {
     var buf = [_]u8{ 0x00, 0x2b, 0x00, 0x02, 0x00, 0x01 };
     var in = Bytes{ .buf = &buf };
 

@@ -160,6 +160,44 @@ pub const Handshake = union(HandshakeType) {
     }
 };
 
+test "Handshake (ClientHello) encode" {
+    const ch = Handshake{
+        .client_hello = .{
+            .random = .{0x42} ** 32,
+            .legacy_session_id = try ClientHello.LegacySessionId.fromSlice(std.testing.allocator, &.{0x01}),
+            .cipher_suites = try ClientHello.CipherSuites.fromSlice(std.testing.allocator, &.{ .TLS_AES_128_GCM_SHA256, .TLS_CHACHA20_POLY1305_SHA256 }),
+            .legacy_compression_methods = try ClientHello.LegacyCompressionMethods.fromSlice(std.testing.allocator, &.{0x02}),
+            .extensions = try ClientHello.Extensions.fromSlice(std.testing.allocator, &.{}),
+        },
+    };
+    defer ch.deinit();
+
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+
+    try ch.encode(&out);
+
+    // zig fmt: off
+    try std.testing.expectEqualSlices(u8, &.{
+        // msg_type
+        0x01,
+        // length
+        0x00, 0x00, 0x2e,
+
+        // Client Hello
+        0x03, 0x03,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x01, 0x01,
+        0x00, 0x04, 0x13, 0x01, 0x13, 0x03,
+        0x01, 0x02,
+        0x00, 0x00,
+    }, out.split().former.buf);
+    // zig fmt: on
+}
+
 test "Handshake (ClientHello) decode" {
     // Brought from https://www.rfc-editor.org/rfc/rfc8448#section-3
     // but a little bit changed a part of TLS extensions so that it is suitable for QUIC

@@ -102,7 +102,7 @@ pub const Packet = union(PacketType) {
         }
     }
 
-    /// Gets the Destination Connection ID included in this packet. 
+    /// Gets the Destination Connection ID included in this packet.
     pub fn destination_connection_id(self: Self) []const u8 {
         return switch (self) {
             .initial => |a| a.destination_connection_id.items,

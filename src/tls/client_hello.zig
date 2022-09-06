@@ -98,6 +98,47 @@ pub const ClientHello = struct {
     }
 };
 
+test "ClientHello encode" {
+    const ch = ClientHello{
+        .random = .{0x42} ** 32,
+        .legacy_session_id = try ClientHello.LegacySessionId.fromSlice(std.testing.allocator, &.{0x01}),
+        .cipher_suites = try ClientHello.CipherSuites.fromSlice(std.testing.allocator, &.{ .TLS_AES_128_GCM_SHA256, .TLS_CHACHA20_POLY1305_SHA256 }),
+        .legacy_compression_methods = try ClientHello.LegacyCompressionMethods.fromSlice(std.testing.allocator, &.{0x02}),
+        .extensions = try ClientHello.Extensions.fromSlice(std.testing.allocator, &.{}),
+    };
+    defer ch.deinit();
+
+    var buf: [1024]u8 = undefined;
+    var out = Bytes{ .buf = &buf };
+
+    try ch.encode(&out);
+
+    // zig fmt: off
+    try std.testing.expectEqualSlices(u8, &.{
+        // legacy_version
+        0x03, 0x03,
+
+        // random
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
+
+        // legacy_session_id
+        0x01, 0x01,
+
+        // cipher_suites
+        0x00, 0x04, 0x13, 0x01, 0x13, 0x03,
+
+        // legacy_compression_methods
+        0x01, 0x02,
+
+        // extensions
+        0x00, 0x00,
+    }, out.split().former.buf);
+    // zig fmt: on
+}
+
 test "ClientHello decode" {
     const supported_groups = @import("./extension/supported_groups.zig");
     const supported_versions = @import("./extension/supported_versions.zig");

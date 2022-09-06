@@ -1,8 +1,9 @@
 const std = @import("std");
 const Bytes = @import("../bytes.zig").Bytes;
 const Crypto = @import("./crypto.zig").Crypto;
-const Padding = @import("./padding.zig").Padding;
-const Ack = @import("./ack.zig").Ack;
+
+pub const Padding = @import("./padding.zig").Padding;
+pub const Ack = @import("./ack.zig").Ack;
 
 pub const FrameType = enum {
     padding,

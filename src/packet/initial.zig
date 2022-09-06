@@ -4,6 +4,7 @@ const log = std.log;
 const ArrayList = std.ArrayList;
 const Bytes = @import("../bytes.zig").Bytes;
 const isSupported = @import("../version.zig").isSupported;
+const quic_v1 = @import("../version.zig").quic_v1;
 const max_cid_len = @import("../packet.zig").max_cid_len;
 const crypto = @import("../crypto.zig");
 const Aes128 = std.crypto.core.aes.Aes128;
@@ -34,7 +35,7 @@ const utils = @import("../utils.zig");
 /// }
 pub const Initial = struct {
     /// QUIC version identifier.
-    version: u32,
+    version: u32 = quic_v1,
     /// Destination connection ID of the packet.
     /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
     /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
@@ -360,7 +361,6 @@ test "decode Client Initial from RFC 9001" {
     defer got.deinit();
 
     // See if the header part is correctly decoded.
-    const quic_v1 = @import("../version.zig").quic_v1;
     try std.testing.expectEqual(@as(u32, quic_v1), got.version);
     try std.testing.expectEqualSlices(
         u8,
@@ -432,7 +432,6 @@ test "decode Client Initial from 'The Illustrated QUIC Connection'" {
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
-    const quic_v1 = @import("../version.zig").quic_v1;
     try std.testing.expectEqual(@as(u32, quic_v1), got.version);
     try std.testing.expectEqualSlices(
         u8,
@@ -611,7 +610,6 @@ test "decode Client Initial from cloudflare/quiche" {
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
-    const quic_v1 = @import("../version.zig").quic_v1;
     try std.testing.expectEqual(@as(u32, quic_v1), got.version);
     try std.testing.expectEqualSlices(
         u8,
@@ -797,7 +795,6 @@ test "decode Client Initial from aws/s2n-quic" {
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
-    const quic_v1 = @import("../version.zig").quic_v1;
     try std.testing.expectEqual(@as(u32, quic_v1), got.version);
     try std.testing.expectEqualSlices(
         u8,

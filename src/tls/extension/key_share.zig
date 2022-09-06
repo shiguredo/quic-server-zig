@@ -3,8 +3,8 @@ const VariableLengthVector = @import("../../variable_length_vector.zig").Variabl
 const Bytes = @import("../../bytes.zig").Bytes;
 const NamedGroup = @import("./supported_groups.zig").NamedGroup;
 
-const ClientShares = VariableLengthVector(KeyShareEntry, 65535);
-const KeyExchange = VariableLengthVector(u8, 65535);
+pub const ClientShares = VariableLengthVector(KeyShareEntry, 65535);
+pub const KeyExchange = VariableLengthVector(u8, 65535);
 
 /// https://www.rfc-editor.org/rfc/rfc8446#section-4.2.8
 ///

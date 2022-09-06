@@ -79,6 +79,23 @@ pub const Packet = union(PacketType) {
         }
     }
 
+    /// Gets the Destination Connection ID included in this packet. 
+    pub fn destination_connection_id(self: Self) []const u8 {
+        return switch (self) {
+            .initial => |a| a.destination_connection_id.items,
+            // TODO(magurotuna)
+            .zero_rtt => unreachable,
+            // TODO(magurotuna)
+            .handshake => unreachable,
+            // TODO(magurotuna)
+            .retry => unreachable,
+            // TODO(magurotuna)
+            .version_negotiation => unreachable,
+            // TODO(magurotuna)
+            .one_rtt => unreachable,
+        };
+    }
+
     fn decodeAsLongHeaderPacket(allocator: std.mem.Allocator, in: *Bytes) !Self {
         // Ensure that `in` has not been consumed yet.
         std.debug.assert(in.pos == 0);

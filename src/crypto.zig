@@ -90,11 +90,7 @@ fn getHeaderProtectionMask(comptime kind: EndpointKind, comptime Aes: type, clie
     ctx.encrypt(&encrypted, sample);
 
     var ret: [5]u8 = undefined;
-
-    comptime var i = 0;
-    inline while (i < 5) : (i += 1) {
-        ret[i] = encrypted[i];
-    }
+    mem.copy(u8, &ret, encrypted[0..ret.len]);
 
     return ret;
 }

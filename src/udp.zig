@@ -47,6 +47,10 @@ pub const UdpSocket = struct {
             .src = try parseAddr(addr_ptr, size),
         };
     }
+
+    pub fn sendTo(self: Self, buf: []const u8, to: net.Address) !usize {
+        return os.sendto(self.sockfd, buf, 0, &to.any, to.getOsSockLen());
+    }
 };
 
 fn parseAddr(raw_addr: *const os.sockaddr, size: usize) !net.Address {

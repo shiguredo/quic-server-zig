@@ -242,7 +242,10 @@ pub fn Extension(comptime endpoint_kind: enum { server, client }) type {
                 .renegotiation_info => |r| r.deinit(),
                 .unknown => |u| u.deinit(),
                 // TODO(magurotuna): implement other extensions
-                else => unreachable,
+                else => {
+                    log.debug("Unsupported extension type detected: {s}\n", .{@tagName(self)});
+                    unreachable;
+                },
             }
         }
     };

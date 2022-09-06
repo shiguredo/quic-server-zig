@@ -40,28 +40,26 @@ fn deriveInitialSecretInner(comptime kind: EndpointKind, out: *[32]u8, client_de
 
 /// Derives AEAD Key (key) from the given server_initial_secret,
 /// writing the result into `out`.
-/// TODO(magurotuna): it works well for client_initial_secret, so maybe 2nd parameter should be renamed?
-pub fn deriveAeadKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
+pub fn deriveAeadKey(out: *[16]u8, initial_secret: [32]u8) !void {
     const label = "quic key";
     const ctx = "";
-    try hkdfExpandLabel(server_initial_secret, label, ctx, out);
+    try hkdfExpandLabel(initial_secret, label, ctx, out);
 }
 
 /// Derives Initialization Vector (IV) from the given server_initial_secret,
 /// writing the result into `out`.
-/// TODO(magurotuna): it works well for client_initial_secret, so maybe 2nd parameter should be renamed?
-pub fn deriveInitializationVector(out: *[12]u8, server_initial_secret: [32]u8) !void {
+pub fn deriveInitializationVector(out: *[12]u8, initial_secret: [32]u8) !void {
     const label = "quic iv";
     const ctx = "";
-    try hkdfExpandLabel(server_initial_secret, label, ctx, out);
+    try hkdfExpandLabel(initial_secret, label, ctx, out);
 }
 
 /// Derives Header Protection Key (hp) from the given server_initial_secret,
 /// writing the result into `out`.
-pub fn deriveHeaderProtectionKey(out: *[16]u8, server_initial_secret: [32]u8) !void {
+pub fn deriveHeaderProtectionKey(out: *[16]u8, initial_secret: [32]u8) !void {
     const label = "quic hp";
     const ctx = "";
-    try hkdfExpandLabel(server_initial_secret, label, ctx, out);
+    try hkdfExpandLabel(initial_secret, label, ctx, out);
 }
 
 /// Returns a mask that is used to protect the header sent from the server.

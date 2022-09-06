@@ -57,6 +57,124 @@ pub const Initial = struct {
 
     const Self = @This();
 
+    /// Encodes the Initial packet and write it to `out`, with the payload being encrypted and the header being protected.
+    /// Note that it only supports Server Initial right now.
+    pub fn encode(self: Self, out: *bytes.Bytes) !void {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+
+        // Encode the payload without encryption.
+        // TODO(magurotuna): find out more appropriate size
+        var payload_buf = try allocator.alloc(u8, 65536);
+        var payload_bytes = bytes.Bytes{ .buf = payload_buf };
+        for (self.payload.items) |frame| {
+            try frame.encode(&payload_bytes);
+        }
+        const raw_payload = payload_bytes.split().former.buf;
+
+        // Encode the header without protection.
+        // TODO(magurotuna): find out more appropriate size
+        var header_buf = try allocator.alloc(u8, 1024);
+        var header_bytes = bytes.Bytes{ .buf = header_buf };
+        try self.encode_header_no_protect(&header_bytes);
+        const raw_header = header_bytes.split().former.buf;
+
+        const client_destination_connection_id = self.source_connection_id.items;
+        // Encrypt the payload.
+        const encrypted_payload = try crypto.encryptPayload(allocator, raw_payload, raw_header, self.packet_number, client_destination_connection_id);
+
+        // Protect the header.
+        const protected_header = blk: {
+            var header = try allocator.dupe(u8, raw_header);
+
+            // https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-sample
+            const sample_length = 16;
+            // Since we always use `4` as the length of the Packet Number field for the moment,
+            // sample can be taken from the very first byte of encrypted_payload.
+            const sample = encrypted_payload.items[0..sample_length];
+
+            const mask = try crypto.getServerHeaderProtectionMask(Aes128, client_destination_connection_id, sample);
+            // https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-applicati
+            //
+            // # Long header: 4 bits masked
+            // packet[0] ^= mask[0] & 0x0f
+            header[0] ^= mask[0] & 0x0f;
+
+            // We are allowed to use any number between 1 to 4 as the length of Packet Number.
+            // https://www.rfc-editor.org/rfc/rfc9000.html#name-long-header-packets
+            // To keep things simple, we use the maximum length `4` as the length of the Packet Number field,
+            // because this can accomodate all possible packet numbers.
+            const packet_number_length = 4;
+            std.debug.assert(packet_number_length <= 4);
+
+            // https://www.rfc-editor.org/rfc/rfc9001.html#name-header-protection-applicati
+            //
+            // # pn_offset is the start of the Packet Number field.
+            // packet[pn_offset:pn_offset+pn_length] ^= mask[1:1+pn_length]
+            const hlen = header.len;
+            const packet_number_offset = hlen - packet_number_length;
+            {
+                var i: usize = 0;
+                while (i < packet_number_length) : (i += 1) {
+                    header[packet_number_offset + i] ^= mask[1 + i];
+                }
+            }
+
+            break :blk header;
+        };
+
+        // Write everything into `out`.
+        try out.putBytes(protected_header);
+        try out.putBytes(encrypted_payload.items);
+    }
+
+    /// Encodes the header part of the Initial packet and write it to `out`.
+    /// It will NOT do any protection on the written data.
+    fn encode_header_no_protect(self: Self, out: *bytes.Bytes) !void {
+        // We are allowed to use any number between 1 to 4 as the length of Packet Number.
+        // https://www.rfc-editor.org/rfc/rfc9000.html#name-long-header-packets
+        // To keep things simple, we use the maximum length `4` as the length of the Packet Number field,
+        // because this can accomodate all possible packet numbers.
+        const packet_number_length = 4;
+        std.debug.assert(packet_number_length <= 4);
+
+        const first_byte: u8 = blk: {
+            const header_form = 1 << 7;
+            const fixed_bit = 1 << 6;
+            const long_packet_type = 0;
+            const reserved_bits = 0;
+            const packet_number_length_minus_1 = @intCast(u8, packet_number_length) - 1;
+            break :blk header_form ^ fixed_bit ^ long_packet_type ^ reserved_bits ^ packet_number_length_minus_1;
+        };
+        try out.put(u8, first_byte);
+
+        // Version
+        try out.put(u32, self.version);
+        // Destination Connection ID Length
+        try out.put(u8, @intCast(u8, self.destination_connection_id.items.len));
+        // Destination Connection ID
+        try out.putBytes(self.destination_connection_id.items);
+        // Source Connection ID Length
+        try out.put(u8, @intCast(u8, self.source_connection_id.items.len));
+        // Source Connection ID
+        try out.putBytes(self.source_connection_id.items);
+        // Token Length
+        try out.putVarInt(@intCast(u64, self.token.items.len));
+        // Token
+        try out.putBytes(self.token.items);
+        // Length
+        try out.putVarInt(@intCast(u64, packet_number_length + payload_len: {
+            var len: usize = 0;
+            for (self.payload.items) |f| {
+                len += f.encodedLength();
+            }
+            break :payload_len len;
+        }));
+        // Packet Number
+        try out.put(u32, self.packet_number);
+    }
+
     /// Decodes the input bytes, assuming that the bytes are coming from a client, not from a server.
     pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
         // Ensure that `in` has not been consumed yet.
@@ -190,6 +308,87 @@ pub const Initial = struct {
         self.payload.deinit();
     }
 };
+
+test "encode Server Initial" {
+    const ServerHello = @import("../tls/server_hello.zig").ServerHello;
+    const KeyExchange = @import("../tls/extension/key_share.zig").KeyExchange;
+    const AckRanges = @import("../frame/ack.zig").Ack.AckRanges;
+
+    // Brought from https://quic.xargs.org/
+    const server_initial = Initial{
+        .destination_connection_id = blk: {
+            var dcid = try ArrayList(u8).initCapacity(std.testing.allocator, 6);
+            dcid.appendSliceAssumeCapacity(&.{ 0x05, 0x63, 0x5f, 0x63, 0x69, 0x64 });
+            break :blk dcid;
+        },
+        .source_connection_id = blk: {
+            var scid = try ArrayList(u8).initCapacity(std.testing.allocator, 6);
+            scid.appendSliceAssumeCapacity(&.{ 0x05, 0x73, 0x5f, 0x63, 0x69, 0x64 });
+            break :blk scid;
+        },
+        .token = ArrayList(u8).init(std.testing.allocator),
+        .packet_number = 0,
+        .payload = blk: {
+            var frames = try ArrayList(Frame).initCapacity(std.testing.allocator, 2);
+            frames.appendSliceAssumeCapacity(&.{
+                .{
+                    .ack = .{
+                        .largest_acknowledged = 0,
+                        .ack_delay = 0x42_40,
+                        .first_ack_range = 0,
+                        .ack_range = AckRanges.init(std.testing.allocator),
+                    },
+                },
+                .{
+                    .crypto = .{
+                        .offset = 0,
+                        .crypto_data = .{
+                            .server_hello = .{
+                                .random = .{
+                                    0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77,
+                                    0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f,
+                                    0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
+                                    0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f,
+                                },
+                                .legacy_session_id_echo = try ServerHello.LegacySessionId.fromSlice(std.testing.allocator, &.{0}),
+                                .cipher_suite = .TLS_AES_128_GCM_SHA256,
+                                .extensions = try ServerHello.Extensions.fromSlice(std.testing.allocator, &.{
+                                    .{
+                                        .key_share = .{
+                                            .server_share = .{
+                                                .group = .x25519,
+                                                .key_exchange = try KeyExchange.fromSlice(std.testing.allocator, &.{
+                                                    0x9f, 0xd7, 0xad, 0x6d, 0xcf, 0xf4, 0x29, 0x8d,
+                                                    0xd3, 0xf9, 0x6d, 0x5b, 0x1b, 0x2a, 0xf9, 0x10,
+                                                    0xa0, 0x53, 0x5b, 0x14, 0x88, 0xd7, 0xf8, 0xfa,
+                                                    0xbb, 0x34, 0x9a, 0x98, 0x28, 0x80, 0xb6, 0x15,
+                                                }),
+                                            },
+                                        },
+                                    },
+                                    .{
+                                        .supported_versions = .{
+                                            .selected_version = 0x03_04,
+                                        },
+                                    },
+                                }),
+                            },
+                        },
+                    },
+                },
+            });
+            break :blk frames;
+        },
+    };
+    defer server_initial.deinit();
+
+    var buf: [1024]u8 = undefined;
+    var out = bytes.Bytes{ .buf = &buf };
+
+    try server_initial.encode(&out);
+
+    // TODO(magurotuna): add more assertions
+}
 
 test "decode Client Initial from RFC 9001" {
     // https://www.rfc-editor.org/rfc/rfc9001#name-client-initial

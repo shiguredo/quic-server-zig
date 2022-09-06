@@ -47,6 +47,13 @@ pub const Packet = union(PacketType) {
 
     const Self = @This();
 
+    /// Encodes the packet data into `buf` and returns how many bytes have been written.
+    pub fn toBytes(self: Self, buf: []u8) !usize {
+        var out = Bytes{ .buf = buf };
+        try self.encode(&out);
+        return out.pos;
+    }
+
     pub fn fromBytes(allocator: std.mem.Allocator, buf: []u8) !Self {
         var bs = Bytes{ .buf = buf };
         return decode(allocator, &bs);
@@ -65,6 +72,20 @@ pub const Packet = union(PacketType) {
             .version_negotiation => unreachable,
             // TODO(magurotuna)
             .one_rtt => unreachable,
+        }
+    }
+
+    pub fn encode(self: Self, out: *Bytes) !void {
+        // Ensure that no data is written to `out` yet.
+        std.debug.assert(out.pos == 0);
+
+        switch (self) {
+            .initial => |i| try i.encode(out),
+            .zero_rtt => |z| try z.encode(out),
+            .handshake => |h| try h.encode(out),
+            .retry => |r| try r.encode(out),
+            .version_negotiation => |v| try v.encode(out),
+            .one_rtt => |o| try o.encode(out),
         }
     }
 

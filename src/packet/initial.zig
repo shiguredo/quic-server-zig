@@ -2,7 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const log = std.log;
 const ArrayList = std.ArrayList;
-const Bytes = @import("../bytes.zig").Bytes;
+const bytes = @import("../bytes.zig");
 const isSupported = @import("../version.zig").isSupported;
 const quic_v1 = @import("../version.zig").quic_v1;
 const max_cid_len = @import("../packet.zig").max_cid_len;
@@ -58,7 +58,7 @@ pub const Initial = struct {
     const Self = @This();
 
     /// Decodes the input bytes, assuming that the bytes are coming from a client, not from a server.
-    pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
+    pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
         // Ensure that `in` has not been consumed yet.
         std.debug.assert(in.pos == 0);
 
@@ -91,7 +91,7 @@ pub const Initial = struct {
 
         // The original byte stream `in` might contain multiple QUIC packets. We want to decode
         // one packet at the moment, so we create another `Bytes` that views only one packet we're focusing on.
-        var packet_bytes = Bytes{ .buf = in.buf[0..in.pos] };
+        var packet_bytes = bytes.Bytes{ .buf = in.buf[0..in.pos] };
         log.debug("packet bytes: {}\n", .{std.fmt.fmtSliceHexLower(packet_bytes.buf)});
 
         // https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-sample
@@ -145,7 +145,7 @@ pub const Initial = struct {
         defer payload_bytes.deinit();
 
         const frames = blk: {
-            var buf = Bytes{ .buf = payload_bytes.items };
+            var buf = bytes.Bytes{ .buf = payload_bytes.items };
             var fs = ArrayList(Frame).init(allocator);
             errdefer {
                 for (fs.items) |item| {
@@ -157,7 +157,7 @@ pub const Initial = struct {
             decode_frames: while (true) {
                 const f = Frame.decode(allocator, &buf) catch |e| {
                     // In case of `BufferTooShort` it indicates all frames have been decoded.
-                    if (e == Bytes.Error.BufferTooShort)
+                    if (e == bytes.Bytes.Error.BufferTooShort)
                         break :decode_frames;
 
                     return e;
@@ -356,7 +356,7 @@ test "decode Client Initial from RFC 9001" {
     };
     // zig fmt: on
 
-    var bs = Bytes{ .buf = &in };
+    var bs = bytes.Bytes{ .buf = &in };
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
@@ -428,7 +428,7 @@ test "decode Client Initial from 'The Illustrated QUIC Connection'" {
     };
     // zig fmt: on
 
-    var bs = Bytes{ .buf = &in };
+    var bs = bytes.Bytes{ .buf = &in };
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
@@ -606,7 +606,7 @@ test "decode Client Initial from cloudflare/quiche" {
     };
     // zig fmt: on
 
-    var bs = Bytes{ .buf = &in };
+    var bs = bytes.Bytes{ .buf = &in };
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 
@@ -791,7 +791,7 @@ test "decode Client Initial from aws/s2n-quic" {
     };
     // zig fmt: on
 
-    var bs = Bytes{ .buf = &in };
+    var bs = bytes.Bytes{ .buf = &in };
     const got = try Initial.decode(std.testing.allocator, &bs);
     defer got.deinit();
 

@@ -20,8 +20,8 @@ const utils = @import("../utils.zig");
 ///     Header Form (1) = 1,
 ///     Fixed Bit (1) = 1,
 ///     Long Packet Type (2) = 0,
-///     Reserved Bits (2),         # Protected
-///     Packet Number Length (2),  # Protected
+///     Reserved Bits (2),         # Protected. The value included prior to protection MUST be set to 0.
+///     Packet Number Length (2),  # Protected. The length of the Packet Number field is the unprotected value of this field plus one.
 ///     Version (32),
 ///     Destination Connection ID Length (8),
 ///     Destination Connection ID (0..160),

@@ -228,7 +228,7 @@ fn deriveCommonInitialSecret(client_destination_connection_id: []const u8) [32]u
 /// Decrypts payload of the packet.
 /// Currently it assumes that the given packet is Initial packet sent from the client.
 /// TODO(magurotuna): support all types of packets
-pub fn decryptPayload(allocator: mem.Allocator, encrypted_payload: []const u8, unprotected_header: []const u8, packet_number: u32, client_destination_connection_id: []const u8) !ArrayList(u8) {
+pub fn decryptPayload(comptime kind: EndpointKind, allocator: mem.Allocator, encrypted_payload: []const u8, unprotected_header: []const u8, packet_number: u32, client_destination_connection_id: []const u8) !ArrayList(u8) {
     // In AEAD_AES_128_GCM, an authentication tag is 16-octet length and present at the end of the payload.
     // https://www.rfc-editor.org/rfc/rfc5116.html#section-5.1
     // TODO(magurotuna): support others: AEAD_AES_256_GCM, AEAD_CHACHA20_POLY1305 and AEAD_AES_128_CCM.
@@ -240,9 +240,12 @@ pub fn decryptPayload(allocator: mem.Allocator, encrypted_payload: []const u8, u
     };
     const encrypted_payload_without_tag = encrypted_payload[0..(encrypted_payload.len - tag_length)];
 
-    const client_initial_secret = blk: {
+    const initial_secret = blk: {
         var s: [32]u8 = undefined;
-        try deriveClientInitialSecret(&s, client_destination_connection_id);
+        switch (kind) {
+            .client => try deriveClientInitialSecret(&s, client_destination_connection_id),
+            .server => try deriveServerInitialSecret(&s, client_destination_connection_id),
+        }
         break :blk s;
     };
 
@@ -256,7 +259,7 @@ pub fn decryptPayload(allocator: mem.Allocator, encrypted_payload: []const u8, u
         const iv_length = 12;
         std.debug.assert(iv_length == Aes128Gcm.nonce_length);
         var iv: [iv_length]u8 = undefined;
-        try deriveInitializationVector(&iv, client_initial_secret);
+        try deriveInitializationVector(&iv, initial_secret);
         var pn: [iv_length]u8 = undefined;
         mem.writeIntSliceBig(u32, &pn, packet_number);
         var n: [Aes128Gcm.nonce_length]u8 = undefined;
@@ -269,7 +272,7 @@ pub fn decryptPayload(allocator: mem.Allocator, encrypted_payload: []const u8, u
 
     const key = blk: {
         var k: [16]u8 = undefined;
-        try deriveAeadKey(&k, client_initial_secret);
+        try deriveAeadKey(&k, initial_secret);
         break :blk k;
     };
 
@@ -456,7 +459,7 @@ test "decrypt payload of Initial packet sent from a client" {
     };
     // zig fmt: on
 
-    const got = try decryptPayload(std.testing.allocator, &encrypted_payload, &unprotected_header, packet_number, &client_dcid);
+    const got = try decryptPayload(.client, std.testing.allocator, &encrypted_payload, &unprotected_header, packet_number, &client_dcid);
     defer got.deinit();
 
     const expected = blk: {
@@ -514,10 +517,13 @@ test "decrypt payload of Initial packet sent from a client" {
 /// Encrypt payload using various information such as unprotected header, packet number, and Destination Connection ID that the client determines.
 ///
 /// https://www.rfc-editor.org/rfc/rfc9001.html#name-aead-usage
-pub fn encryptPayload(allocator: mem.Allocator, payload: []const u8, header: []const u8, packet_number: u32, client_destination_connection_id: []const u8) !ArrayList(u8) {
-    const server_initial_secret = blk: {
+pub fn encryptPayload(comptime kind: EndpointKind, allocator: mem.Allocator, payload: []const u8, header: []const u8, packet_number: u32, client_destination_connection_id: []const u8) !ArrayList(u8) {
+    const initial_secret = blk: {
         var s: [32]u8 = undefined;
-        try deriveServerInitialSecret(&s, client_destination_connection_id);
+        switch (kind) {
+            .client => try deriveClientInitialSecret(&s, client_destination_connection_id),
+            .server => try deriveServerInitialSecret(&s, client_destination_connection_id),
+        }
         break :blk s;
     };
 
@@ -531,7 +537,7 @@ pub fn encryptPayload(allocator: mem.Allocator, payload: []const u8, header: []c
         const iv_length = 12;
         std.debug.assert(iv_length == Aes128Gcm.nonce_length);
         var iv: [iv_length]u8 = undefined;
-        try deriveInitializationVector(&iv, server_initial_secret);
+        try deriveInitializationVector(&iv, initial_secret);
         var pn: [iv_length]u8 = undefined;
         mem.writeIntSliceBig(u32, &pn, packet_number);
         var n: [Aes128Gcm.nonce_length]u8 = undefined;
@@ -544,7 +550,7 @@ pub fn encryptPayload(allocator: mem.Allocator, payload: []const u8, header: []c
 
     const key = blk: {
         var k: [16]u8 = undefined;
-        try deriveAeadKey(&k, server_initial_secret);
+        try deriveAeadKey(&k, initial_secret);
         break :blk k;
     };
 
@@ -616,7 +622,7 @@ test "encryptPayload" {
         0xd0, 0x74, 0xee,
     };
 
-    const got = try encryptPayload(std.testing.allocator, &raw_payload, &raw_header, packet_number, &client_dcid);
+    const got = try encryptPayload(.server, std.testing.allocator, &raw_payload, &raw_header, packet_number, &client_dcid);
     defer got.deinit();
 
     try std.testing.expectEqualSlices(u8, &expected, got.items);

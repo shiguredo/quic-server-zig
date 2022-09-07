@@ -82,7 +82,7 @@ pub const Initial = struct {
 
         const client_destination_connection_id = self.source_connection_id.items;
         // Encrypt the payload.
-        const encrypted_payload = try crypto.encryptPayload(allocator, raw_payload, raw_header, self.packet_number, client_destination_connection_id);
+        const encrypted_payload = try crypto.encryptPayload(.server, allocator, raw_payload, raw_header, self.packet_number, client_destination_connection_id);
 
         // Protect the header.
         const protected_header = blk: {
@@ -258,7 +258,7 @@ pub const Initial = struct {
                 break :hdr h;
             };
 
-            break :blk try crypto.decryptPayload(allocator, encrypted_payload, unprotected_header, packet_number, dcid.items);
+            break :blk try crypto.decryptPayload(.client, allocator, encrypted_payload, unprotected_header, packet_number, dcid.items);
         };
         defer payload_bytes.deinit();
 

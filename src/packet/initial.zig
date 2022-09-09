@@ -139,6 +139,23 @@ pub const Initial = struct {
         const packet_number_length = 4;
         std.debug.assert(packet_number_length <= 4);
 
+        // TODO(magurotuna): AEAD length is hardcoded here for now, and we are sure that it works fine.
+        // Probably it would be better to manage this value somewhere else.
+        //
+        // As a reference, we can find the information on the hardcoded value here:
+        // https://datatracker.ietf.org/doc/html/rfc5116#section-5.1
+        //
+        // > An AEAD_AES_128_GCM ciphertext is exactly 16 octets longer than its corresponding plaintext.
+        //
+        // > The AEAD_AES_128_GCM ciphertext is formed by appending the authentication tag provided as an
+        // > output to the GCM encryption operation to the ciphertext that is output by that operation.
+        //
+        // We can also find in RFC 9001: https://www.rfc-editor.org/rfc/rfc9001.html#name-aead-usage
+        //
+        // > These cipher suites have a 16-byte authentication tag and produce an output 16 bytes larger
+        // > than their input.
+        const aead_tag_length = 16;
+
         const first_byte: u8 = blk: {
             const header_form = 1 << 7;
             const fixed_bit = 1 << 6;
@@ -170,7 +187,7 @@ pub const Initial = struct {
                 len += f.encodedLength();
             }
             break :payload_len len;
-        }));
+        } + aead_tag_length));
         // Packet Number
         try out.put(u32, self.packet_number);
     }

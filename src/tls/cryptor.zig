@@ -146,6 +146,11 @@ pub const TLS_AES_128_GCM_SHA256 = struct {
         return Cryptor.init(self, deinit, protectHeader, unprotectHeader, encryptPayload, decryptPayload);
     }
 
+    pub fn initial(allocator: Allocator, client_dcid: []const u8, is_server: bool) !Cryptor {
+        const initial_secret = try derive.initialSecret(Self, client_dcid, is_server);
+        return fromSecret(allocator, initial_secret);
+    }
+
     fn deinit(self: *Self) void {
         self.allocator.destroy(self);
     }

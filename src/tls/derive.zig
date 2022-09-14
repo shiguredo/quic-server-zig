@@ -11,6 +11,36 @@ const Bytes = @import("../bytes.zig").Bytes;
 const utils = @import("../utils.zig");
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 
+pub fn initialSecret(
+    comptime CipherSuite: type,
+    client_dcid: []const u8,
+    is_server: bool,
+) ![CipherSuite.Hmac.mac_length]u8 {
+    // https://www.rfc-editor.org/rfc/rfc9001#name-packet-protection
+    //
+    // > Initial packets use AEAD_AES_128_GCM with keys derived from the Destination Connection ID
+    // > field of the first Initial packet sent by the client
+    if (
+        CipherSuite.Aead != Aes128Gcm or
+        CipherSuite.Hkdf != HkdfSha256 or
+        CipherSuite.Hmac != HmacSha256
+    )
+        @compileError("Initial packets must be protected with AEAD_AES_128_GCM");
+
+    // https://www.rfc-editor.org/rfc/rfc9001.html#name-initial-secrets
+    const salt = [_]u8{
+        0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3,
+        0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad,
+        0xcc, 0xbb, 0x7f, 0x0a,
+    };
+    const common_secret = HkdfSha256.extract(&salt, client_dcid);
+    const label = if (is_server) "server in" else "client in";
+    const ctx = "";
+    var out: [CipherSuite.Hmac.mac_length]u8 = undefined;
+    try hkdfExpandLabel(CipherSuite, common_secret, label, ctx, &out);
+    return out;
+}
+
 /// Derive AEAD Key (key) from the given secret.
 pub fn aeadKey(
     comptime CipherSuite: type,
@@ -216,7 +246,7 @@ const DeriveTest = struct {
 
             try std.testing.expectEqualSlices(u8, &.{
                 0xc2, 0x06, 0xb8, 0xd9, 0xb9, 0xf0, 0xf3, 0x76,
-                0x44, 0x43, 0x0b, 0x49, 0x0e, 0xea, 0xa3, 0x14, 
+                0x44, 0x43, 0x0b, 0x49, 0x0e, 0xea, 0xa3, 0x14,
             }, &got);
         }
     }

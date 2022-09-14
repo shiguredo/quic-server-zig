@@ -53,11 +53,10 @@ pub const Header = struct {
     };
 
     /// Decodes header from the given buffer.
-    /// `dcid_len` is used only when decoding a short header.
-    /// Deinitialize with `deinit`.
-    pub fn decode(allocator: std.mem.Allocator, buf: []u8, dcid_len: usize) !Self {
+    /// When the header is a short header, it assumes that the length of Destination Connection ID is 16 bytes.
+    pub fn decode(allocator: std.mem.Allocator, buf: []u8) !Self {
         var bs = Bytes{ .buf = buf };
-        return fromBytes(allocator, &bs, dcid_len);
+        return fromBytes(allocator, &bs, 16);
     }
 
     /// Release all allocated memory.
@@ -304,7 +303,7 @@ test "Initial" {
     defer hdr.deinit();
 
     try hdr.encode(&d);
-    const got = try Header.decode(allocator, &d, 9);
+    const got = try Header.decode(allocator, &d);
     defer got.deinit();
 
     try assertHeaderEqual(hdr, got);
@@ -347,7 +346,7 @@ test "retry" {
     try hdr.toBytes(&b);
     // Add fake retry integrity token.
     try b.putBytes(&[_]u8{0xba} ** 16);
-    const got = try Header.decode(allocator, &d, 9);
+    const got = try Header.decode(allocator, &d);
     defer got.deinit();
 
     try assertHeaderEqual(hdr, got);

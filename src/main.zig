@@ -6,6 +6,7 @@ const packet = @import("./packet.zig");
 const Conn = @import("./conn.zig").Conn;
 const Frame = @import("./frame/frame.zig").Frame;
 const Ack = @import("./frame/frame.zig").Ack;
+const header = @import("./header.zig");
 
 // key = ConnectionID
 const ClientMap = std.StringHashMap(Conn);
@@ -31,39 +32,43 @@ pub fn main() !void {
             std.fmt.fmtSliceHexLower(buf[0..recv.num_bytes]),
         });
 
-        // TODO(magurotuna): One datagram may contain multiple QUIC packets,
-        // which we need to support.
-        const decoded_packet = try packet.Packet.fromBytes(allocator, buf[0..recv.num_bytes]);
-        defer decoded_packet.deinit();
+        const hdr = try header.Header.decode(allocator, buf[0..recv.num_bytes]);
+        defer hdr.deinit();
 
-        if (clients.getEntry(decoded_packet.destination_connection_id())) |client| {
+        if (clients.getEntry(hdr.dcid.items)) |client| {
             // The associated client is found, meaning that it's the existing connection.
             // TODO(magurotuna) implement
             _ = client;
             std.debug.print("UNIMPLEMENTED: the associated client is found.", .{});
         } else {
             // When there's no clients registered in the client map, it means this client is new.
-            if (decoded_packet != .initial) {
-                log.err("Initial packet is expected, but received `{s}`\n", .{@tagName(decoded_packet)});
+            if (hdr.packet_type != .initial) {
+                log.err("Initial packet is expected, but received `{s}`\n", .{@tagName(hdr.packet_type)});
                 continue :read_loop;
             }
 
-            // Initial packet has come from a client.
-            // We need to respond with Server Initial and then Handshake.
-            const server_initial = try generateServerInitial(
-                allocator,
-                decoded_packet.destination_connection_id(),
-                decoded_packet.source_connection_id().?,
-                decoded_packet.packet_number(),
-                decoded_packet.payload(),
-            );
+            // Create a new Conn
+            //var conn = try Conn.new(allocator, hdr.scid.items, hdr.dcid.items);
 
-            var send_buf: [65536]u8 = undefined;
-            const packet_to_send = packet.Packet{ .initial = server_initial };
-            defer packet_to_send.deinit();
-            const n_written = try packet_to_send.toBytes(&send_buf);
-            const n_sent = try sock.sendTo(send_buf[0..n_written], recv.src);
-            log.info("{} bytes have been sent to the client.\n", .{n_sent});
+            //// Do handshake
+            //const client_initial_pkt = 
+
+            //// Initial packet has come from a client.
+            //// We need to respond with Server Initial and then Handshake.
+            //const server_initial = try generateServerInitial(
+            //    allocator,
+            //    decoded_packet.destination_connection_id(),
+            //    decoded_packet.source_connection_id().?,
+            //    decoded_packet.packet_number(),
+            //    decoded_packet.payload(),
+            //);
+
+            //var send_buf: [65536]u8 = undefined;
+            //const packet_to_send = packet.Packet{ .initial = server_initial };
+            //defer packet_to_send.deinit();
+            //const n_written = try packet_to_send.toBytes(&send_buf);
+            //const n_sent = try sock.sendTo(send_buf[0..n_written], recv.src);
+            //log.info("{} bytes have been sent to the client.\n", .{n_sent});
         }
     }
 }

@@ -1,115 +1,365 @@
 const std = @import("std");
 const mem = std.mem;
-const crypto = std.crypto;
 const ArrayList = std.ArrayList;
-const HkdfSha256 = crypto.kdf.hkdf.HkdfSha256;
+const crypto = std.crypto;
 const Aes128 = crypto.core.aes.Aes128;
+const Aes256 = crypto.core.aes.Aes256;
+const ChaCha20IETF = crypto.stream.chacha.ChaCha20IETF;
 const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
+const Aes256Gcm = crypto.aead.aes_gcm.Aes256Gcm;
+const ChaCha20Poly1305 = crypto.aead.chacha_poly.ChaCha20Poly1305;
+const HmacSha256 = crypto.auth.hmac.sha2.HmacSha256;
+const HkdfSha256 = crypto.kdf.hkdf.HkdfSha256;
+const HmacSha384 = crypto.auth.hmac.sha2.HmacSha384;
+const HkdfSha384 = crypto.kdf.hkdf.Hkdf(HmacSha384);
 const VariableLengthVector = @import("./variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("./bytes.zig").Bytes;
 const utils = @import("../utils.zig");
 
-const EndpointKind = enum {
-    server,
-    client,
+//pub const Algorithm = enum {
+//    AES128_GCM,
+//    AES256_GCM,
+//    ChaCha20_Poly1305,
+//
+//    const Self = @This();
+//
+//    pub fn key_length(self: Self) usize {
+//        return switch (self) {
+//            .AES128_GCM => Aes128Gcm.key_length,
+//            .AES256_GCM => Aes256Gcm.key_length,
+//            .ChaCha20_Poly1305 => ChaCha20Poly1305.key_length,
+//        };
+//    }
+//
+//    pub fn nonce_length(self: Self) usize {
+//        return switch (self) {
+//            .AES128_GCM => Aes128Gcm.nonce_length,
+//            .AES256_GCM => Aes256Gcm.nonce_length,
+//            .ChaCha20_Poly1305 => ChaCha20Poly1305.nonce_length,
+//        };
+//    }
+//
+//    pub fn tag_length(self: Self) usize {
+//        return switch (self) {
+//            .AES128_GCM => Aes128Gcm.tag_length,
+//            .AES256_GCM => Aes256Gcm.tag_length,
+//            .ChaCha20_Poly1305 => ChaCha20Poly1305.tag_length,
+//        };
+//    }
+//
+//    pub fn mac_length(self: Self) usize {
+//        return switch (self) {
+//            .AES128_GCM, .ChaCha20_Poly1305 => HmacSha256.mac_length,
+//            .AES256_GCM => HmacSha384.mac_length,
+//        };
+//    }
+//
+//    /// Return the number of bytes used when deriving the header protection mask.
+//    ///
+//    /// https://www.rfc-editor.org/rfc/rfc9001#name-header-protection-sample
+//    pub fn sample_length(self: Self) usize {
+//        return switch (self) {
+//            .AES128_GCM, .AES256_GCM, .ChaCha20_Poly1305 => 16,
+//        };
+//    }
+//
+//    /// Extract a master key from a salt and initial keying material, and write it into `out`.
+//    /// Make sure that the length of `out` matches that of the underlying hash algorithm.
+//    pub fn hkdfExtract(self: Self, out: []u8, salt: []const u8, initial_keying_material: []const u8) void {
+//        std.debug.assert(out.len == self.mac_length);
+//
+//        switch (self) {
+//            .AES128_GCM, .ChaCha20_Poly1305 => {
+//                const k = HkdfSha256.extract(salt, initial_keying_material);
+//                mem.copy(u8, out, &k);
+//            },
+//            .AES256_GCM => {
+//                const k = HkdfSha384.extract(salt, initial_keying_material);
+//                mem.copy(u8, out, &k);
+//            },
+//        }
+//    }
+//
+//    /// Derive a subkey from a master key `key` and a subkey description `ctx`, and write it into `out`.
+//    pub fn hkdfExpand(self: Self, out: []u8, ctx: []const u8, key: []const u8) void {
+//        std.debug.assert(key.len == self.mac_length);
+//
+//        switch (self) {
+//            .AES128_GCM, .ChaCha20_Poly1305 => {
+//                const k: u8[self.mac_length()] = undefined;
+//                mem.copy(u8, &k, key);
+//                HkdfSha256.expand(out, ctx, k);
+//            },
+//            .AES256_GCM => {
+//                const k: u8[self.mac_length()] = undefined;
+//                mem.copy(u8, &k, key);
+//                HkdfSha384.expand(out, ctx, k);
+//            },
+//        }
+//    }
+//
+//    pub fn deriveMask(self: Self, header_protection_key: []const u8, sample: []const u8) [5]u8 {
+//        switch (self) {
+//            .AES128_GCM => {
+//                const ctx = Aes128.initEnc(header_protection_key);
+//            },
+//        }
+//    }
+//};
+
+pub fn Algorithm(comptime Aead: type, comptime Hmac: type, comptime Hkdf: type) type {
+    _ = Hkdf;
+
+    return struct {
+        key: [Aead.key_length]u8,
+        initialization_vector: [Aead.nonce_length]u8,
+        header_protection_key: [Aead.key_length]u8,
+
+        const Self = @This();
+
+        pub fn fromSecret(secret: [Hmac.mac_length]u8) !Self {
+            const key = try deriveAeadKey(Aead, Hmac, secret);
+            const iv = try deriveInitializationVector(Aead, Hmac, secret);
+            const hp = try deriveHeaderProtectionKey(Aead, secret);
+
+            return Self{
+                .key = key,
+                .initialization_vector = iv,
+                .header_protection_key = hp,
+            };
+        }
+
+        /// Derive a header protection mask from a header protection key and sampled ciphertext.
+        /// https://www.rfc-editor.org/rfc/rfc9001#name-header-protection
+        fn deriveMask(self: Self, sample: *const [16]u8) [5]u8 {
+            switch (self) {
+                .AES128_GCM => {
+                    // https://www.rfc-editor.org/rfc/rfc9001#name-aes-based-header-protection
+                    const ctx = Aes128.initEnc(self.header_protection_key);
+                    var encrypted: [16]u8 = undefined;
+                    ctx.encrypt(&encrypted, sample);
+                    return encrypted[0..5].*;
+                },
+                .AES128_GCM => {
+                    // https://www.rfc-editor.org/rfc/rfc9001#name-aes-based-header-protection
+                    const ctx = Aes256.initEnc(self.header_protection_key);
+                    var encrypted: [16]u8 = undefined;
+                    ctx.encrypt(&encrypted, sample);
+                    return encrypted[0..5].*;
+                },
+                .ChaCha20_Poly1305 => {
+                    // https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
+                    //
+                    // > The first 4 bytes of the sampled ciphertext are the block counter.
+                    // > A ChaCha20 implementation could take a 32-bit integer in place of
+                    // > a byte sequence, in which case, the byte sequence is interpreted as
+                    // > a **little-endian** value.
+                    const counter = mem.readIntLittle(u32, sample[0..4]);
+
+                    // > The remaining 12 bytes are used as the nonce.
+                    const nonce = sample[4..16];
+
+                    var out: [5]u8 = undefined;
+                    const in: [5]u8 = .{0} ** 5;
+                    ChaCha20IETF.xor(&out, &in, counter, self.header_protection_key, nonce);
+
+                    return out;
+                },
+            }
+        }
+    };
+}
+
+pub const Encryptor = union(enum) {
+    AES128_GCM: Algorithm(Aes128Gcm, HmacSha256, HkdfSha256),
+    AES256_GCM: Algorithm(Aes256Gcm, HmacSha384, HkdfSha384),
+    ChaCha20_Poly1305: Algorithm(ChaCha20Poly1305, HmacSha256, HkdfSha256),
+
+    const Self = @This();
+
+    pub fn deriveMask(self: Self, sample: *const [16]u8) [5]u8 {
+        return switch (self) {
+            .AES128_GCM => |a| a.deriveMask(sample),
+            .AES256_GCM => |a| a.deriveMask(sample),
+            .ChaCha20_Poly1305 => |a| a.deriveMask(sample),
+        };
+    }
 };
 
-/// Derives server_initial_secret from the given client Destination Connection ID,
-/// writing the result into `out`.
-/// https://www.rfc-editor.org/rfc/rfc9001#name-initial-secrets
-pub fn deriveServerInitialSecret(out: *[32]u8, client_destination_connection_id: []const u8) !void {
-    try deriveInitialSecretInner(.server, out, client_destination_connection_id);
-}
+pub const Decryptor = union(enum) {
+    AES128_GCM: Algorithm(Aes128Gcm, HmacSha256, HkdfSha256),
+    AES256_GCM: Algorithm(Aes256Gcm, HmacSha384, HkdfSha384),
+    ChaCha20_Poly1305: Algorithm(ChaCha20Poly1305, HmacSha256, HkdfSha256),
 
-/// Derives client_initial_secret from the given client Destination Connection ID,
-/// writing the result into `out`.
-/// https://www.rfc-editor.org/rfc/rfc9001#name-initial-secrets
-pub fn deriveClientInitialSecret(out: *[32]u8, client_destination_connection_id: []const u8) !void {
-    try deriveInitialSecretInner(.client, out, client_destination_connection_id);
-}
+    const Self = @This();
 
-fn deriveInitialSecretInner(comptime kind: EndpointKind, out: *[32]u8, client_destination_connection_id: []const u8) !void {
-    const initial_secret = deriveCommonInitialSecret(client_destination_connection_id);
-    const label = switch (kind) {
-        .server => "server in",
-        .client => "client in",
+    pub fn deriveMask(self: Self, sample: *const [16]u8) [5]u8 {
+        return switch (self) {
+            .AES128_GCM => |a| a.deriveMask(sample),
+            .AES256_GCM => |a| a.deriveMask(sample),
+            .ChaCha20_Poly1305 => |a| a.deriveMask(sample),
+        };
+    }
+};
+
+const EndpointKind = enum { server, client };
+
+pub fn deriveInitialCryptor(
+    comptime kind: EndpointKind,
+    destination_connection_id: []const u8,
+) !struct { encryptor: Encryptor, decryptor: Decryptor } {
+    const common_initial_secret = deriveCommonInitialSecret(destination_connection_id);
+
+    var client_initial_secret: [32]u8 = undefined;
+    try deriveClientInitialSecret(HkdfSha256, HmacSha256, &common_initial_secret, &client_initial_secret);
+
+    var server_initial_secret: [32]u8 = undefined;
+    try deriveServerInitialSecret(HkdfSha256, HmacSha256, &server_initial_secret, &common_initial_secret);
+
+    return switch (kind) {
+        .client => .{
+            .encryptor = .{
+                .AES128_GCM = try Algorithm(Aes128Gcm, HmacSha256, HkdfSha256).fromSecret(client_initial_secret),
+            },
+            .decriptor = .{
+                .AES128_GCM = try Algorithm(Aes128Gcm, HmacSha256, HkdfSha256).fromSecret(server_initial_secret),
+            },
+        },
+        .server => .{
+            .encryptor = .{
+                .AES128_GCM = try Algorithm(Aes128Gcm, HmacSha256, HkdfSha256).fromSecret(server_initial_secret),
+            },
+            .decriptor = .{
+                .AES128_GCM = try Algorithm(Aes128Gcm, HmacSha256, HkdfSha256).fromSecret(client_initial_secret),
+            },
+        },
     };
-    const ctx = "";
-    try hkdfExpandLabel(initial_secret, label, ctx, out);
 }
 
-/// Derives AEAD Key (key) from the given server_initial_secret,
-/// writing the result into `out`.
-pub fn deriveAeadKey(out: *[16]u8, initial_secret: [32]u8) !void {
+fn deriveCommonInitialSecret(client_destination_connection_id: []const u8) [HmacSha256.mac_length]u8 {
+    // https://www.rfc-editor.org/rfc/rfc9001.html#name-initial-secrets
+    //
+    // > This secret is determined by using HKDF-Extract (see Section 2.2 of [HKDF])
+    // > with a salt of 0x38762cf7f55934b34d179ae6a4c80cadccbb7f0a and the input keying
+    // > material (IKM) of the Destination Connection ID field.
+    const initial_salt = [_]u8{
+        0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3,
+        0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad,
+        0xcc, 0xbb, 0x7f, 0x0a,
+    };
+    return HkdfSha256.extract(&initial_salt, client_destination_connection_id);
+}
+
+/// https://www.rfc-editor.org/rfc/rfc9001#name-initial-secrets
+fn deriveServerInitialSecret(
+    comptime Hkdf: type,
+    comptime Hmac: type,
+    algo: Algorithm,
+    key: []const u8,
+    out: []u8,
+) !void {
+    const label = "server in";
+    const ctx = "";
+    try hkdfExpandLabel(Hkdf, Hmac, algo, key, label, ctx, out);
+}
+
+/// https://www.rfc-editor.org/rfc/rfc9001#name-initial-secrets
+fn deriveClientInitialSecret(
+    comptime Hkdf: type,
+    comptime Hmac: type,
+    algo: Algorithm,
+    key: []const u8,
+    out: []u8,
+) !void {
+    const label = "client in";
+    const ctx = "";
+    try hkdfExpandLabel(Hkdf, Hmac, algo, key, label, ctx, out);
+}
+
+/// Derives AEAD Key (key) from the given secret.
+fn deriveAeadKey(comptime Aead: type, comptime Hmac: type, secret: [Hmac.mac_length]u8) ![Aead.key_length]u8 {
     const label = "quic key";
     const ctx = "";
-    try hkdfExpandLabel(initial_secret, label, ctx, out);
+    var out: [Aead.key_length]u8 = undefined;
+    try hkdfExpandLabel(secret, label, ctx, &out);
+    return out;
 }
 
-/// Derives Initialization Vector (IV) from the given server_initial_secret,
-/// writing the result into `out`.
-pub fn deriveInitializationVector(out: *[12]u8, initial_secret: [32]u8) !void {
+/// Derives Initialization Vector (IV) from the given secret.
+///
+/// https://www.rfc-editor.org/rfc/rfc9001.html#name-packet-protection-keys
+///
+/// > The Length provided with "quic iv" is the minimum length of the AEAD nonce
+/// > or 8 bytes if that is larger
+fn deriveInitializationVector(comptime Aead: type, comptime Hmac: type, secret: [Hmac.mac_length]u8) ![Aead.nonce_length]u8 {
     const label = "quic iv";
     const ctx = "";
-    try hkdfExpandLabel(initial_secret, label, ctx, out);
+    var out: [Aead.nonce_length]u8 = undefined;
+    try hkdfExpandLabel(secret, label, ctx, &out);
+    return out;
 }
 
-/// Derives Header Protection Key (hp) from the given server_initial_secret,
-/// writing the result into `out`.
-pub fn deriveHeaderProtectionKey(out: *[16]u8, initial_secret: [32]u8) !void {
+/// Derives Header Protection Key (hp) from the given secret.
+fn deriveHeaderProtectionKey(comptime Aead: type, secret: []const u8) ![Aead.key_length]u8 {
     const label = "quic hp";
     const ctx = "";
-    try hkdfExpandLabel(initial_secret, label, ctx, out);
+    var out: [Aead.key_length]u8 = undefined;
+    try hkdfExpandLabel(secret, label, ctx, &out);
+    return out;
 }
 
-/// Returns a mask that is used to protect the header sent from the server.
-/// TODO(magurotuna): add support for ChaCha20-Based header protection
-/// https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
-pub fn getServerHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
-    return getHeaderProtectionMask(.server, Aes, client_destination_connection_id, sample);
-}
-
-/// Returns a mask that is used to protect the header sent from the client.
-/// TODO(magurotuna): add support for ChaCha20-Based header protection
-/// https://www.rfc-editor.org/rfc/rfc9001#name-chacha20-based-header-prote
-pub fn getClientHeaderProtectionMask(comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
-    return getHeaderProtectionMask(.client, Aes, client_destination_connection_id, sample);
-}
-
-fn getHeaderProtectionMask(comptime kind: EndpointKind, comptime Aes: type, client_destination_connection_id: []const u8, sample: *const [16]u8) ![5]u8 {
-    var initial_secret: [32]u8 = undefined;
-    switch (kind) {
-        .server => try deriveServerInitialSecret(&initial_secret, client_destination_connection_id),
-        .client => try deriveClientInitialSecret(&initial_secret, client_destination_connection_id),
+fn hkdfExpandLabel(
+    comptime Hkdf: type,
+    comptime Hmac: type,
+    secret: [Hmac.mac_length]u8,
+    label: []const u8,
+    ctx: []const u8,
+    out: []u8,
+) !void {
+    if (HkdfLabel.label_prefix.len + label.len > HkdfLabel.label_max_length) {
+        return error.LabelTooLong;
+    }
+    if (ctx.len > HkdfLabel.ctx_max_length) {
+        return error.ContextTooLong;
     }
 
-    var hp_key: [16]u8 = undefined;
-    try deriveHeaderProtectionKey(&hp_key, initial_secret);
-    const ctx = Aes.initEnc(hp_key);
-    var encrypted: [16]u8 = undefined;
-    ctx.encrypt(&encrypted, sample);
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
-    var ret: [5]u8 = undefined;
-    mem.copy(u8, &ret, encrypted[0..ret.len]);
+    const hkdfLabel = try HkdfLabel.new(allocator, @intCast(u16, out.len), label, ctx);
 
-    return ret;
+    // TODO(magurotuna): consider more appropriate array size
+    var encoded_label: [4096]u8 = undefined;
+    var bs = Bytes{ .buf = &encoded_label };
+    try hkdfLabel.encode(&bs);
+
+    Hkdf.expand(out, bs.split().former.buf, secret);
+}
+
+/// Extract a master key from a salt and initial keying material.
+fn hkdfExtract(
+    comptime Hkdf: type,
+    comptime Hmac: type,
+    salt: []const u8,
+    initial_keying_material: []const u8,
+) [Hmac.mac_length]u8 {
+    return Hkdf.extract(salt, initial_keying_material);
 }
 
 test "server header protection mask" {
     // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#name-server-initial
-    // zig fmt: off
     const client_dcid = [_]u8{
         0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
     };
-    // zig fmt: on
+    const cryptor = deriveInitialCryptor(.server, &client_dcid);
 
-    // zig fmt: off
     const sample = [_]u8{
         0x2c, 0xd0, 0x99, 0x1c, 0xd2, 0x5b, 0x0a, 0xac,
         0x40, 0x6a, 0x58, 0x16, 0xb6, 0x39, 0x41, 0x00,
     };
-    // zig fmt: on
-    const got = try getServerHeaderProtectionMask(Aes128, &client_dcid, &sample);
+    const got = cryptor.encryptor.deriveMask(&sample);
+
     const expected = [_]u8{
         0x2e, 0xc0, 0xd8, 0x35, 0x6a,
     };
@@ -118,19 +368,17 @@ test "server header protection mask" {
 
 test "client header protection mask" {
     // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#name-client-initial
-    // zig fmt: off
     const client_dcid = [_]u8{
         0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
     };
-    // zig fmt: on
+    const cryptor = deriveInitialCryptor(.client, &client_dcid);
 
-    // zig fmt: off
     const sample = [_]u8{
         0xd1, 0xb1, 0xc9, 0x8d, 0xd7, 0x68, 0x9f, 0xb8,
         0xec, 0x11, 0xd2, 0x42, 0xb1, 0x23, 0xdc, 0x9b,
     };
-    // zig fmt: on
-    const got = try getClientHeaderProtectionMask(Aes128, &client_dcid, &sample);
+    const got = cryptor.encryptor.deriveMask(&sample);
+
     const expected = [_]u8{
         0x43, 0x7b, 0x9a, 0xec, 0x36,
     };
@@ -191,39 +439,6 @@ const HkdfLabel = struct {
         self.context.deinit();
     }
 };
-
-fn hkdfExpandLabel(secret: [32]u8, label: []const u8, ctx: []const u8, out: []u8) !void {
-    if (HkdfLabel.label_prefix.len + label.len > HkdfLabel.label_max_length) {
-        return error.LabelTooLong;
-    }
-    if (ctx.len > HkdfLabel.ctx_max_length) {
-        return error.ContextTooLong;
-    }
-
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    const hkdfLabel = try HkdfLabel.new(allocator, @intCast(u16, out.len), label, ctx);
-
-    // TODO(magurotuna): consider more appropriate array size
-    var encoded_label: [4096]u8 = undefined;
-    var bs = Bytes{ .buf = &encoded_label };
-    try hkdfLabel.encode(&bs);
-
-    HkdfSha256.expand(out, bs.split().former.buf, secret);
-}
-
-fn deriveCommonInitialSecret(client_destination_connection_id: []const u8) [32]u8 {
-    // zig fmt: off
-    const initial_salt = [_]u8{
-        0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3,
-        0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad,
-        0xcc, 0xbb, 0x7f, 0x0a,
-    };
-    // zig fmt: on
-    return HkdfSha256.extract(&initial_salt, client_destination_connection_id);
-}
 
 /// Decrypts payload of the packet.
 /// Currently it assumes that the given packet is Initial packet sent from the client.
@@ -689,41 +904,43 @@ test "Doing encryptPayload then decryptPayload, can we get the original payload?
 test "initial_secret" {
     {
         // This test case is brought from https://www.rfc-editor.org/rfc/rfc9001#section-a.1
-        // zig fmt: off
         const client_dcid = [_]u8{
             0x83, 0x94, 0xc8, 0xf0, 0x3e, 0x51, 0x57, 0x08,
         };
-        // zig fmt: on
 
-        const got = deriveCommonInitialSecret(&client_dcid);
-        // zig fmt: off
+        const algo = Algorithm.AES128_GCM;
+        const mac_length = comptime algo.mac_length();
+        var got: u8[mac_length] = undefined;
+        deriveCommonInitialSecret(algo, &got, &client_dcid);
+
         const expected = [_]u8{
             0x7d, 0xb5, 0xdf, 0x06, 0xe7, 0xa6, 0x9e, 0x43,
             0x24, 0x96, 0xad, 0xed, 0xb0, 0x08, 0x51, 0x92,
             0x35, 0x95, 0x22, 0x15, 0x96, 0xae, 0x2a, 0xe9,
             0xfb, 0x81, 0x15, 0xc1, 0xe9, 0xed, 0x0a, 0x44,
         };
-        // zig fmt: on
+
         try std.testing.expectEqualSlices(u8, &expected, &got);
     }
 
     {
         // This test case is brought from https://quic.xargs.org/
-        // zig fmt: off
         const client_dcid = [_]u8{
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
         };
-        // zig fmt: on
 
-        const got = deriveCommonInitialSecret(&client_dcid);
-        // zig fmt: off
+        const algo = Algorithm.AES128_GCM;
+        const mac_length = comptime algo.mac_length();
+        var got: u8[mac_length] = undefined;
+        deriveCommonInitialSecret(algo, &got, &client_dcid);
+
         const expected = [_]u8{
             0xf0, 0x16, 0xbb, 0x2d, 0xc9, 0x97, 0x6d, 0xea,
             0x27, 0x26, 0xc4, 0xe6, 0x1e, 0x73, 0x8a, 0x1e,
             0x36, 0x80, 0xa2, 0x48, 0x75, 0x91, 0xdc, 0x76,
             0xb2, 0xae, 0xe2, 0xed, 0x75, 0x98, 0x22, 0xf6,
         };
-        // zig fmt: on
+
         try std.testing.expectEqualSlices(u8, &expected, &got);
     }
 }

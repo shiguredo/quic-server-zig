@@ -1,4 +1,5 @@
 const std = @import("std");
+const net = std.net;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const PacketNumberSpaces = @import("./packet_number_space.zig").PacketNumberSpaces;
@@ -17,6 +18,12 @@ pub const Conn = struct {
         local: net.Address,
         peer: net.Address,
     ) !Self {
+        // TODO(magurotuna)
+        _ = allocator;
+        _ = scid;
+        _ = dcid;
+        _ = local;
+        _ = peer;
         return error.Unimplemented;
     }
 

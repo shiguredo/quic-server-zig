@@ -20,11 +20,9 @@ pub fn initialSecret(
     //
     // > Initial packets use AEAD_AES_128_GCM with keys derived from the Destination Connection ID
     // > field of the first Initial packet sent by the client
-    if (
-        CipherSuite.Aead != Aes128Gcm or
+    if (CipherSuite.Aead != Aes128Gcm or
         CipherSuite.Hkdf != HkdfSha256 or
-        CipherSuite.Hmac != HmacSha256
-    )
+        CipherSuite.Hmac != HmacSha256)
         @compileError("Initial packets must be protected with AEAD_AES_128_GCM");
 
     // https://www.rfc-editor.org/rfc/rfc9001.html#name-initial-secrets

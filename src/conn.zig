@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const PacketNumberSpaces = @import("./packet_number_space.zig").PacketNumberSpaces;
 
@@ -9,7 +10,17 @@ pub const Conn = struct {
 
     const Self = @This();
 
-    pub fn new(allocator: std.mem.Allocator, scid: []const u8, dcid: []const u8) !Self {
+    pub fn accept(
+        allocator: Allocator,
+        scid: []const u8,
+        dcid: []const u8,
+        local: net.Address,
+        peer: net.Address,
+    ) !Self {
+        return error.Unimplemented;
+    }
+
+    pub fn new(allocator: Allocator, scid: []const u8, dcid: []const u8) !Self {
         var scid_owned = try ArrayList(u8).initCapacity(allocator, scid.len);
         errdefer scid_owned.deinit();
         scid_owned.appendSliceAssumeCapacity(scid);

@@ -10,14 +10,6 @@ pub const Retry = @import("./packet/retry.zig").Retry;
 pub const VersionNegotiation = @import("./packet/version_negotiation.zig").VersionNegotiation;
 pub const OneRtt = @import("./packet/one_rtt.zig").OneRtt;
 
-/// An enum to distinguish packet number spaces.
-/// https://datatracker.ietf.org/doc/html/rfc9000#section-12.3
-pub const PacketNumberSpace = enum {
-    initial,
-    handshake,
-    application_data,
-};
-
 pub const PacketType = enum {
     // Long Header Packets
     // https://www.rfc-editor.org/rfc/rfc9000.html#name-long-header-packets

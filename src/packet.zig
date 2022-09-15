@@ -3,6 +3,7 @@ const Bytes = @import("./bytes.zig").Bytes;
 const crypto = @import("./crypto.zig");
 const Frame = @import("./frame/frame.zig").Frame;
 
+pub const Header = @import("./packet/header.zig");
 pub const Initial = @import("./packet/initial.zig").Initial;
 pub const ZeroRtt = @import("./packet/zero_rtt.zig").ZeroRtt;
 pub const Handshake = @import("./packet/handshake.zig").Handshake;

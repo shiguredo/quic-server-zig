@@ -6,7 +6,6 @@ const packet = @import("./packet.zig");
 const Conn = @import("./conn.zig").Conn;
 const Frame = @import("./frame/frame.zig").Frame;
 const Ack = @import("./frame/frame.zig").Ack;
-const header = @import("./header.zig");
 
 // key = ConnectionID
 const ClientMap = std.StringHashMap(Conn);
@@ -32,7 +31,7 @@ pub fn main() !void {
             std.fmt.fmtSliceHexLower(buf[0..recv.num_bytes]),
         });
 
-        const hdr = try header.Header.decode(allocator, buf[0..recv.num_bytes]);
+        const hdr = try packet.Header.decode(allocator, buf[0..recv.num_bytes]);
         defer hdr.deinit();
 
         if (clients.getEntry(hdr.dcid.items)) |client| {

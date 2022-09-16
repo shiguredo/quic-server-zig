@@ -3,11 +3,15 @@ const net = std.net;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const PacketNumberSpaces = @import("./packet_number_space.zig").PacketNumberSpaces;
+const Bytes = @import("./bytes.zig").Bytes;
+const packet = @import("./packet.zig");
 
 pub const Conn = struct {
     scid: ArrayList(u8),
     dcid: ArrayList(u8),
     pkt_num_spaces: PacketNumberSpaces,
+
+    allocator: Allocator,
 
     const Self = @This();
 
@@ -40,6 +44,7 @@ pub const Conn = struct {
             .scid = scid_owned,
             .dcid = dcid_owned,
             .pkt_num_spaces = pkt_num_spaces,
+            .allocator = allocator,
         };
     }
 
@@ -49,11 +54,33 @@ pub const Conn = struct {
     }
 
     pub fn recv(self: *Self, buf: []u8, local: net.Address, peer: net.Address) !usize {
-        // TODO(maguorotuna)
-        _ = self;
-        _ = buf;
         _ = local;
         _ = peer;
+
+        var done: usize = 0;
+        var left: usize = buf.len;
+
+        // One UDP datagram may contain multiple QUIC packets. We handle each packet one by one.
+        while (left > 0) {
+            const read = try self.recvSingle(buf);
+            left -= read;
+            done += read;
+        }
+
+        return done;
+    }
+
+    /// Process just one QUIC packet from the buffer and returns the number of bytes processed.
+    fn recvSingle(self: *Self, buf: []u8) !usize {
+        var input = Bytes{ .buf = buf };
+
+        const hdr = try packet.Header.fromBytes(self.allocator, &input, self.dcid.items.len);
+        defer hdr.deinit();
+
+        if (self.pkt_num_spaces.getByPacketType(hdr.packet_type)) |pkt_num_space| {
+            _ = pkt_num_space;
+        } else |_| {}
+
         return error.Unimplemented;
     }
 };

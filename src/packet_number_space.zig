@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const crypto = @import("./crypto.zig");
 const tls = @import("./tls.zig");
+const packet = @import("./packet.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
 ///
@@ -29,6 +30,19 @@ pub const PacketNumberSpaces = struct {
         self.initial.deinit();
         self.handshake.deinit();
         self.application_data.deinit();
+    }
+
+    /// Get the packet number space corresponding to the given packet type.
+    pub fn getByPacketType(
+        self: Self,
+        packet_type: packet.PacketType,
+    ) error{NoCorrespondingPacketNameSpace}!PacketNumberSpace {
+        return switch (packet_type) {
+            .initial => self.initial,
+            .handshake => self.handshake,
+            .zero_rtt, .one_rtt => self.application_data,
+            .retry, .version_negotiation => error.NoCorrespondingPacketNameSpace,
+        };
     }
 
     pub fn setInitialCryptor(self: *Self, allocator: Allocator, client_dcid: []const u8, is_server: bool) !void {

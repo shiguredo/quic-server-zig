@@ -14,6 +14,9 @@ const packet_type_mask = 0x30;
 /// as specified in https://datatracker.ietf.org/doc/html/rfc9000#section-17.2
 const max_cid_len = 20;
 
+// For now we assume the length of Destination Connection ID is always 16-byte long.
+const temporary_dcid_len = 16;
+
 const DecodeError = error{
     InvalidPacket,
 };
@@ -47,7 +50,7 @@ key_phase: bool,
 /// When the header is a short header, it assumes that the length of Destination Connection ID is 16 bytes.
 pub fn decode(allocator: std.mem.Allocator, buf: []u8) !Self {
     var bs = Bytes{ .buf = buf };
-    return fromBytes(allocator, &bs, 16);
+    return fromBytes(allocator, &bs, temporary_dcid_len);
 }
 
 /// Release all allocated memory.
@@ -92,7 +95,7 @@ pub fn format(
     try writer.print("key_phase = {}\n", .{self.key_phase});
 }
 
-fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
+pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
     const first = try bs.consume(u8);
 
     if (!isLongHeader(first)) {

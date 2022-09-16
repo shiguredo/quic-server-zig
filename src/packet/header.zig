@@ -33,15 +33,18 @@
 //! }
 
 const std = @import("std");
+const mem = std.mem;
 const ArrayList = std.ArrayList;
 const Bytes = @import("../bytes.zig").Bytes;
 const version = @import("../version.zig");
 const PacketType = @import("./packet_type.zig").PacketType;
+const tls = @import("../tls.zig");
 
 const Self = @This();
 
 const form_bit: u8 = 0x80;
 const fixed_bit: u8 = 0x40;
+const packet_num_len_bit: u8 = 0x03;
 const key_phase_bit: u8 = 0x04;
 const packet_type_mask = 0x30;
 /// In QUIC v1 The length of Connection IDs must be less than or equal to 20,
@@ -222,6 +225,41 @@ pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Sel
         .versions = versions,
         .key_phase = false,
     };
+}
+
+/// Unprotect the header and update the values stored in `self` appropriately.
+/// Additionally, the given `in` will be advanced by the length of packet number.
+/// Note that the passed `in` must have consumed the header part of the packet (i.e. up to the Length field).
+pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError || Bytes.Error)!void {
+    const max_packet_num_length = 4;
+    const sample_length = 16;
+
+    var first = in.buf[0];
+    var remaining = in.split().latter.buf;
+
+    if (remaining.len < max_packet_num_length + sample_length)
+        return DecodeError.InvalidPacket;
+
+    var packet_number_in_buf = remaining[0..max_packet_num_length];
+    var sample: [sample_length]u8 = undefined;
+    mem.copy(u8, &sample, remaining[max_packet_num_length..(max_packet_num_length + sample_length)]);
+    decryptor.unprotectHeader(sample, &first, packet_number_in_buf);
+
+    // The last two bits of the unprotected first byte is packet number length minus 1.
+    const pkt_num_len = @intCast(usize, first & packet_num_len_bit) + 1;
+    self.packet_num_len = pkt_num_len;
+
+    const pkt_num = switch (pkt_num_len) {
+        1 => @intCast(u64, try in.consume(u8)),
+        2 => @intCast(u64, try in.consume(u16)),
+        3 => @intCast(u64, try in.consume(u24)),
+        4 => @intCast(u64, try in.consume(u32)),
+        else => return DecodeError.InvalidPacket,
+    };
+    self.packet_num = pkt_num;
+
+    if (self.packet_type == .one_rtt)
+        self.key_phase = (first & key_phase_bit) != 0;
 }
 
 fn toBytes(self: Self, bs: *Bytes) !void {

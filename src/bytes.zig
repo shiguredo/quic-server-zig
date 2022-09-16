@@ -96,7 +96,7 @@ pub const Bytes = struct {
 
     /// Reads `size` bytes from the current position without advancing the position,
     /// and returns the bytes as a slice without allocating any additional memory.
-    pub fn peekBytes(self: Self, size: usize) ![]u8 {
+    pub fn peekBytes(self: Self, size: usize) Error![]u8 {
         const rest = self.buf[self.pos..];
         if (rest.len < size)
             return Error.BufferTooShort;
@@ -114,7 +114,7 @@ pub const Bytes = struct {
 
     /// Reads `size` bytes from the current position, advances the position,
     /// and returns the bytes as a slice without allocating any additional memory.
-    pub fn consumeBytes(self: *Self, size: usize) ![]u8 {
+    pub fn consumeBytes(self: *Self, size: usize) Error![]u8 {
         const ret = try self.peekBytes(size);
         self.pos += size;
         return ret;
@@ -122,7 +122,7 @@ pub const Bytes = struct {
 
     /// Reads bytes until the end of the buffer without advancing the position,
     /// and returns the bytes as a slice without allocating any additional memory.
-    pub fn peekBytesUntilEnd(self: Self) ![]u8 {
+    pub fn peekBytesUntilEnd(self: Self) Error![]u8 {
         if (self.pos > self.buf.len)
             return Error.OutOfRange;
 

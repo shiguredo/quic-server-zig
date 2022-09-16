@@ -11,7 +11,7 @@ pub const Error = error{
 
 /// Decrypt the payload and return the Bytes that points to the decrypted payload data.
 /// Additionally, the given `in` will be advanced by the length of payload (including AEAD tag).
-/// Note that the passed `in` must have consumed the header part of the packet plus the packet number part.
+/// Note that the passed `in` must have consumed the header part plus the packet number part of the packet.
 pub fn decrypt(
     in: *Bytes,
     packet_num: u64,

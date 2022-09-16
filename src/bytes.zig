@@ -65,6 +65,14 @@ pub const Bytes = struct {
         };
     }
 
+    /// Skips the next `size` bytes.
+    pub fn skip(self: *Self, size: usize) Error!void {
+        if (self.remainingCapacity() < size)
+            return Error.BufferTooShort;
+
+        self.pos += size;
+    }
+
     /// Reads an integer of type `T` from the current position of the buffer,
     /// assuming it's represented in network byte order.
     /// It DOES advance the position.
@@ -269,6 +277,20 @@ pub fn varIntLength(value: u64) usize {
         @as(usize, 8)
     else
         unreachable;
+}
+
+test "Bytes skip" {
+    var buf = [_]u8{ 0x00, 0x01, 0x02 };
+
+    var b = Bytes{ .buf = &buf };
+
+    try std.testing.expectEqual(@as(usize, 0), b.pos);
+    try b.skip(2);
+    try std.testing.expectEqual(@as(usize, 2), b.pos);
+    try std.testing.expectError(error.BufferTooShort, b.skip(2));
+    try b.skip(1);
+    try std.testing.expectEqual(@as(usize, 3), b.pos);
+    try std.testing.expectError(error.BufferTooShort, b.skip(1));
 }
 
 test "Bytes peek, consume" {

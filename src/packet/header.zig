@@ -1,3 +1,37 @@
+//! QUIC's packets are classified into two: long header packets and short header packets.
+//!
+//! RFC 9000 specifies the shape of long header packets in:
+//! https://www.rfc-editor.org/rfc/rfc9000.html#name-long-header-packet-format
+//!
+//! Long Header Packet {
+//!   Header Form (1) = 1,
+//!   Fixed Bit (1) = 1,
+//!   Long Packet Type (2),
+//!   Type-Specific Bits (4),
+//!   Version (32),
+//!   Destination Connection ID Length (8),
+//!   Destination Connection ID (0..160),
+//!   Source Connection ID Length (8),
+//!   Source Connection ID (0..160),
+//!   Type-Specific Payload (..),
+//! }
+//!
+//!
+//! Also short header packets are specified in:
+//! https://www.rfc-editor.org/rfc/rfc9000.html#name-short-header-packets
+//!
+//! 1-RTT Packet {
+//!   Header Form (1) = 0,
+//!   Fixed Bit (1) = 1,
+//!   Spin Bit (1),
+//!   Reserved Bits (2),
+//!   Key Phase (1),
+//!   Packet Number Length (2),
+//!   Destination Connection ID (0..160),
+//!   Packet Number (8..32),
+//!   Packet Payload (8..),
+//! }
+
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const Bytes = @import("../bytes.zig").Bytes;
@@ -21,7 +55,10 @@ const DecodeError = error{
     InvalidPacket,
 };
 
+/// The packet type.
 packet_type: PacketType,
+/// The version of the packet.
+/// Note that this field has a valid value only when it's a long header packet.
 version: u32,
 /// Destination connection ID of the packet.
 /// Although in QUIC v1 the maximum length is 20 bytes, the implementation should
@@ -34,6 +71,7 @@ dcid: ArrayList(u8),
 /// accept Connection ID with its length being over 20 bytes so it can handle QUIC
 /// packets of future versions, as explained here: https://www.rfc-editor.org/rfc/rfc9000.html#section-17.2-3.12.1
 /// So we use `ArrayList(u8)` rather than `BoundedArray(u8, 20)`.
+/// Note that this field has a valid value only when it's a long header packet.
 scid: ArrayList(u8),
 /// Packet number, protected using header protection.
 packet_num: u64,
@@ -43,7 +81,7 @@ packet_num_len: usize,
 token: ?ArrayList(u8),
 /// The list of versions, only present in `VersionNegotiation` packets.
 versions: ?ArrayList(u32),
-/// Key phase bit, protected using header protection.
+/// Key phase bit, protected using header protection. Only present in `OneRTT` packets.
 key_phase: bool,
 
 /// Decodes header from the given buffer.
@@ -106,10 +144,12 @@ pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Sel
             .version = 0,
             .dcid = dcid,
             .scid = ArrayList(u8).init(allocator),
+            // packet_num and packet_num_len will have valid values after the header is unprotected.
             .packet_num = 0,
             .packet_num_len = 0,
             .token = null,
             .versions = null,
+            // key_phase will have a valid value after the header is unprotected.
             .key_phase = false,
         };
     }
@@ -143,6 +183,7 @@ pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Sel
     var versions: ?ArrayList(u32) = null;
 
     switch (packet_type) {
+        // Initial packets have "Token Length" and "Token" fields.
         .initial => {
             token = try bs.consumeBytesOwnedWithVarIntLength(allocator);
         },
@@ -174,6 +215,7 @@ pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Sel
         .version = ver,
         .dcid = dcid,
         .scid = scid,
+        // packet_num and packet_num_len will have valid values after the header is unprotected.
         .packet_num = 0,
         .packet_num_len = 0,
         .token = token,

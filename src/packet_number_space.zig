@@ -1,21 +1,8 @@
 const std = @import("std");
-const EnumArray = std.EnumArray;
+const Allocator = std.mem.Allocator;
+const AutoHashMap = std.AutoHashMap;
 const crypto = @import("./crypto.zig");
 const tls = @import("./tls.zig");
-
-pub const PacketNumberSpaces = EnumArray(PacketNumberSpaceKind, PacketNumberSpace);
-
-fn HashSet(comptime K: type) type {
-    return std.AutoHashMap(K, void);
-}
-
-pub const RangeSet = struct {
-    // TODO(magurotuna)
-};
-
-pub const Stream = struct {
-    // TODO(magurotuna)
-};
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
 ///
@@ -23,10 +10,44 @@ pub const Stream = struct {
 /// > Initial space:          All Initial packets (Section 17.2.2) are in this space.
 /// > Handshake space:        All Handshake packets (Section 17.2.4) are in this space.
 /// > Application data space: All 0-RTT (Section 17.2.3) and 1-RTT (Section 17.3.1) packets are in this space.
-pub const PacketNumberSpaceKind = enum {
-    initial,
-    handshake,
-    application_data,
+pub const PacketNumberSpaces = struct {
+    initial: PacketNumberSpace,
+    handshake: PacketNumberSpace,
+    application_data: PacketNumberSpace,
+
+    const Self = @This();
+
+    pub fn init(allocator: Allocator) Self {
+        return .{
+            .initial = PacketNumberSpace.init(allocator),
+            .handshake = PacketNumberSpace.init(allocator),
+            .application_data = PacketNumberSpace.init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.initial.deinit();
+        self.handshake.deinit();
+        self.application_data.deinit();
+    }
+
+    pub fn setInitialCryptor(self: *Self, allocator: Allocator, client_dcid: []const u8, is_server: bool) !void {
+        const keys = try tls.Keys.initial(allocator, client_dcid, is_server);
+        self.initial.encryptor = keys.local;
+        self.initial.decryptor = keys.remote;
+    }
+};
+
+/// Manage the acknowledged ranges.
+/// https://www.rfc-editor.org/rfc/rfc9000.html#ack-ranges
+pub const RangeSet = struct {
+    // TODO(magurotuna)
+};
+
+/// Represent the QUIC's stream.
+/// https://www.rfc-editor.org/rfc/rfc9000.html#name-streams
+pub const Stream = struct {
+    // TODO(magurotuna)
 };
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
@@ -64,7 +85,7 @@ pub const PacketNumberSpace = struct {
     /// This field is used to detect duplicate packets. We use HashSet to store the already-received
     /// packet numbers, but it can use too much memory. We should reduce the memory usage by adopting
     /// the technique introduced in the RFC.
-    // recv_packet_number: HashSet(u64),
+    recv_packet_number: AutoHashMap(u64, void),
 
     ack_elicited: bool = false,
 
@@ -84,4 +105,20 @@ pub const PacketNumberSpace = struct {
     /// > belongs, the CRYPTO frame carries data for a single stream **per encryption level**.
     /// > The stream does not have an explicit end, so CRYPTO frames do not have a FIN bit.
     crypto_stream: Stream = .{},
+
+    const Self = @This();
+
+    pub fn init(allocator: Allocator) Self {
+        return Self{
+            .recv_packet_number = AutoHashMap(u64, void).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.recv_packet_number.deinit();
+        if (self.encryptor) |*x| x.deinit();
+        if (self.decryptor) |*x| x.deinit();
+        if (self.zero_rtt_encryptor) |*x| x.deinit();
+        if (self.zero_rtt_decryptor) |*x| x.deinit();
+    }
 };

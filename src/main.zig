@@ -34,10 +34,10 @@ pub fn main() !void {
         const hdr = try packet.Header.decode(allocator, buf[0..recv.num_bytes]);
         defer hdr.deinit();
 
-        if (clients.getEntry(hdr.dcid.items)) |client| {
+        var client = try clients.getOrPut(hdr.dcid.items);
+        if (client.found_existing) {
             // The associated client is found, meaning that it's the existing connection.
             // TODO(magurotuna) implement
-            _ = client;
             std.debug.print("UNIMPLEMENTED: the associated client is found.", .{});
         } else {
             // When there's no clients registered in the client map, it means this client is new.
@@ -47,9 +47,13 @@ pub fn main() !void {
             }
 
             // Create a new Conn
-            //var conn = try Conn.new(allocator, hdr.scid.items, hdr.dcid.items);
+            var conn = try Conn.accept(allocator, hdr.scid.items, hdr.dcid.items, addr, recv.src);
 
-            //// Do handshake
+            const n_processed = try conn.recv(buf[0..recv.num_bytes], addr, recv.src);
+            _ = n_processed;
+
+            client.value_ptr.* = conn;
+
             //const client_initial_pkt =
 
             //// Initial packet has come from a client.

@@ -1,7 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const cryptor = @import("./tls/cryptor.zig");
 
-pub const Cryptor = @import("./tls/cryptor.zig").Cryptor;
+pub const Cryptor = cryptor.Cryptor;
 
 /// This type provides the QUIC implementation with the interface to interact with the TLS stack.
 ///
@@ -89,9 +90,9 @@ pub const Keys = struct {
 
     /// Construct keys used for Initial packets.
     pub fn initial(allocator: Allocator, client_dcid: []const u8, is_server: bool) !Self {
-        const server_cryptor = try Cryptor.TLS_AES_128_GCM_SHA256.initial(allocator, client_dcid, true);
+        var server_cryptor = try cryptor.TLS_AES_128_GCM_SHA256.initial(allocator, client_dcid, true);
         errdefer server_cryptor.deinit();
-        const client_cryptor = try Cryptor.TLS_AES_128_GCM_SHA256.initial(allocator, client_dcid, false);
+        var client_cryptor = try cryptor.TLS_AES_128_GCM_SHA256.initial(allocator, client_dcid, false);
         errdefer server_cryptor.deinit();
 
         return Self{

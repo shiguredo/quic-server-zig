@@ -18,16 +18,10 @@ pub const Conn = struct {
         local: net.Address,
         peer: net.Address,
     ) !Self {
-        // TODO(magurotuna)
-        _ = allocator;
-        _ = scid;
-        _ = dcid;
+        // TODO(magurotuna): use these values probably for path verification
         _ = local;
         _ = peer;
-        return error.Unimplemented;
-    }
 
-    pub fn new(allocator: Allocator, scid: []const u8, dcid: []const u8) !Self {
         var scid_owned = try ArrayList(u8).initCapacity(allocator, scid.len);
         errdefer scid_owned.deinit();
         scid_owned.appendSliceAssumeCapacity(scid);
@@ -36,10 +30,16 @@ pub const Conn = struct {
         errdefer dcid_owned.deinit();
         dcid_owned.appendSliceAssumeCapacity(dcid);
 
+        // Initialize three packet number spaces.
+        var pkt_num_spaces = PacketNumberSpaces.init(allocator);
+        errdefer pkt_num_spaces.deinit();
+        // For the Initial space, we can derive data needed to encrypt/decrypt right away.
+        try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
+
         return Self{
             .scid = scid_owned,
             .dcid = dcid_owned,
-            .pkt_num_spaces = PacketNumberSpaces.initFill(.{}),
+            .pkt_num_spaces = pkt_num_spaces,
         };
     }
 
@@ -48,8 +48,12 @@ pub const Conn = struct {
         self.destination_connection_id.deinit();
     }
 
-    pub fn doHandshake(self: *Self) void {
-        // TODO
+    pub fn recv(self: *Self, buf: []u8, local: net.Address, peer: net.Address) !usize {
+        // TODO(maguorotuna)
         _ = self;
+        _ = buf;
+        _ = local;
+        _ = peer;
+        return error.Unimplemented;
     }
 };

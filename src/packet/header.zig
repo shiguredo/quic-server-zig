@@ -2,17 +2,9 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const Bytes = @import("../bytes.zig").Bytes;
 const version = @import("../version.zig");
+const PacketType = @import("./packet_type.zig").PacketType;
 
 const Self = @This();
-
-const PacketType = enum {
-    initial,
-    retry,
-    handshake,
-    zero_rtt,
-    version_negotiation,
-    short,
-};
 
 const form_bit: u8 = 0x80;
 const fixed_bit: u8 = 0x40;
@@ -107,7 +99,7 @@ fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
         const dcid = try bs.consumeBytesOwned(allocator, dcid_len);
 
         return Self{
-            .packet_type = .short,
+            .packet_type = .one_rtt,
             .version = 0,
             .dcid = dcid,
             .scid = ArrayList(u8).init(allocator),
@@ -191,8 +183,8 @@ fn toBytes(self: Self, bs: *Bytes) !void {
     var first: u8 = 0;
     first |= @intCast(u8, self.packet_num_len -| 1);
 
-    // Encode short header.
-    if (self.packet_type == .short) {
+    // Encode OneRTT (i.e. short) header.
+    if (self.packet_type == .one_rtt) {
         first &= ~form_bit;
         first |= fixed_bit;
         if (self.key_phase) {

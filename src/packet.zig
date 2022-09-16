@@ -3,6 +3,7 @@ const Bytes = @import("./bytes.zig").Bytes;
 const crypto = @import("./crypto.zig");
 const Frame = @import("./frame/frame.zig").Frame;
 
+pub const PacketType = @import("./packet/packet_type.zig").PacketType;
 pub const Header = @import("./packet/header.zig");
 pub const Initial = @import("./packet/initial.zig").Initial;
 pub const ZeroRtt = @import("./packet/zero_rtt.zig").ZeroRtt;
@@ -10,25 +11,6 @@ pub const Handshake = @import("./packet/handshake.zig").Handshake;
 pub const Retry = @import("./packet/retry.zig").Retry;
 pub const VersionNegotiation = @import("./packet/version_negotiation.zig").VersionNegotiation;
 pub const OneRtt = @import("./packet/one_rtt.zig").OneRtt;
-
-pub const PacketType = enum {
-    // Long Header Packets
-    // https://www.rfc-editor.org/rfc/rfc9000.html#name-long-header-packets
-    initial,
-    zero_rtt,
-    handshake,
-    retry,
-    // This packet type is not identified by the packet type field;
-    // but by the fact that the version field is not present.
-    version_negotiation,
-
-    // Short Header Packets
-    // https://www.rfc-editor.org/rfc/rfc9000.html#name-short-header-packets
-
-    // This is the only packet type that uses a short header in QUIC v1, so we can identify it
-    // by the fact that header form field is equal to 0 (meaning it's a short-header packet).
-    one_rtt,
-};
 
 pub const Packet = union(PacketType) {
     initial: Initial,

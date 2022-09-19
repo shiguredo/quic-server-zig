@@ -1,6 +1,7 @@
 const std = @import("std");
 const bytes = @import("../bytes.zig");
 const tls_handshake = @import("../tls/handshake.zig");
+const stream = @import("../stream.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-crypto-frames
 ///
@@ -12,99 +13,27 @@ const tls_handshake = @import("../tls/handshake.zig");
 /// }
 pub const Crypto = struct {
     frame_type: u64 = frame_type,
-    offset: u64,
-    // TODO(magurotuna): other types may be put here, but we assume only Handshake for now
-    crypto_data: tls_handshake.Handshake,
+    crypto_data: stream.RangeBuf,
 
     const Self = @This();
     const frame_type: u64 = 0x06;
-
-    pub fn encodedLength(self: Self) usize {
-        var len: usize = 0;
-        len += bytes.varIntLength(self.frame_type);
-        len += bytes.varIntLength(self.offset);
-        len += bytes.varIntLength(@intCast(u64, self.crypto_data.encodedLength()));
-        len += self.crypto_data.encodedLength();
-        return len;
-    }
-
-    pub fn encode(self: Self, out: *bytes.Bytes) !void {
-        try out.putVarInt(self.frame_type);
-        try out.putVarInt(self.offset);
-        try out.putVarInt(@intCast(u64, self.crypto_data.encodedLength()));
-        try self.crypto_data.encode(out);
-    }
 
     pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
         const ty = try in.consumeVarInt();
         std.debug.assert(ty == frame_type);
         const offset = try in.consumeVarInt();
         const length = try in.consumeVarInt();
-        var frame_buf = bytes.Bytes{ .buf = try in.consumeBytes(length) };
-        const crypto_data = try tls_handshake.Handshake.decode(allocator, &frame_buf);
+        const data = try in.consumeBytes(length);
+        const crypto_data = try stream.RangeBuf.from(allocator, data, offset, false);
         errdefer crypto_data.deinit();
 
-        return Self{
-            .offset = offset,
-            .crypto_data = crypto_data,
-        };
+        return Self{ .crypto_data = crypto_data };
     }
 
     pub fn deinit(self: Self) void {
         self.crypto_data.deinit();
     }
 };
-
-test "encode CRYPTO frame" {
-    const ClientHello = @import("../tls/client_hello.zig").ClientHello;
-
-    const crypto = Crypto{
-        .offset = 0,
-        .crypto_data = .{
-            .client_hello = .{
-                .random = .{0x42} ** 32,
-                .legacy_session_id = try ClientHello.LegacySessionId.fromSlice(std.testing.allocator, &.{0x01}),
-                .cipher_suites = try ClientHello.CipherSuites.fromSlice(std.testing.allocator, &.{ .TLS_AES_128_GCM_SHA256, .TLS_CHACHA20_POLY1305_SHA256 }),
-                .legacy_compression_methods = try ClientHello.LegacyCompressionMethods.fromSlice(std.testing.allocator, &.{0x02}),
-                .extensions = try ClientHello.Extensions.fromSlice(std.testing.allocator, &.{}),
-            },
-        },
-    };
-    defer crypto.deinit();
-
-    var buf: [1024]u8 = undefined;
-    var out = bytes.Bytes{ .buf = &buf };
-
-    try crypto.encode(&out);
-
-    // zig fmt: off
-    try std.testing.expectEqualSlices(u8, &.{
-        // Type
-        0x06,
-        // Offset
-        0x00,
-        // Length
-        0x32,
-
-        // Crypto Data
-        // msg_type
-        0x01,
-        // length
-        0x00, 0x00, 0x2e,
-
-        // Client Hello
-        0x03, 0x03,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
-        0x01, 0x01,
-        0x00, 0x04, 0x13, 0x01, 0x13, 0x03,
-        0x01, 0x02,
-        0x00, 0x00,
-    }, out.split().former.buf);
-    // zig fmt: on
-}
 
 test "decode CRYPTO frame" {
     {
@@ -146,8 +75,7 @@ test "decode CRYPTO frame" {
         defer got.deinit();
 
         try std.testing.expectEqual(Crypto.frame_type, got.frame_type);
-        try std.testing.expectEqual(@as(u64, 0), got.offset);
-        try std.testing.expect(got.crypto_data == .client_hello);
+        try std.testing.expectEqual(@as(u64, 0), got.crypto_data.offset);
     }
 
     {
@@ -191,7 +119,6 @@ test "decode CRYPTO frame" {
         defer got.deinit();
 
         try std.testing.expectEqual(Crypto.frame_type, got.frame_type);
-        try std.testing.expectEqual(@as(u64, 0), got.offset);
-        try std.testing.expect(got.crypto_data == .client_hello);
+        try std.testing.expectEqual(@as(u64, 0), got.crypto_data.offset);
     }
 }

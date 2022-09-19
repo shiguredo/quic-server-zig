@@ -3,15 +3,16 @@ const net = std.net;
 const mem = std.mem;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
-const PacketNumberSpaces = @import("./packet_number_space.zig").PacketNumberSpaces;
+const packet_number_space = @import("./packet_number_space.zig");
 const Bytes = @import("./bytes.zig").Bytes;
 const packet = @import("./packet.zig");
 const version = @import("./version.zig");
+const Frame = @import("./frame/frame.zig").Frame;
 
 pub const Conn = struct {
     scid: ArrayList(u8),
     dcid: ArrayList(u8),
-    pkt_num_spaces: PacketNumberSpaces,
+    pkt_num_spaces: packet_number_space.PacketNumberSpaces,
 
     /// The QUIC version used in the connection.
     version: u32 = version.quic_v1,
@@ -19,6 +20,8 @@ pub const Conn = struct {
     did_version_negotiation: bool = false,
     /// Total number of received packets throughout this connection.
     recv_count: usize = 0,
+    /// Total number of bytes received over the connection.
+    recv_bytes: usize = 0,
 
     allocator: Allocator,
 
@@ -54,7 +57,7 @@ pub const Conn = struct {
         dcid_owned.appendSliceAssumeCapacity(dcid);
 
         // Initialize three packet number spaces.
-        var pkt_num_spaces = PacketNumberSpaces.init(allocator);
+        var pkt_num_spaces = packet_number_space.PacketNumberSpaces.init(allocator);
         errdefer pkt_num_spaces.deinit();
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
@@ -142,7 +145,7 @@ pub const Conn = struct {
 
         // Packets with the type of Retry or Version Negotiation are already handled and returned,
         // so we can definitely find the packet number space that corresponds to the given packet type.
-        const pkt_num_space = self.pkt_num_spaces.getByPacketType(hdr.packet_type) catch unreachable;
+        var pkt_num_space = self.pkt_num_spaces.getByPacketType(hdr.packet_type) catch unreachable;
         const decryptor = if (pkt_num_space.decryptor) |d| d else {
             // TODO(magurotuna): in case of 0-RTT packets, we need to buffer the received data
             // until the decryptor is ready so that we can decrypt them later.
@@ -166,7 +169,7 @@ pub const Conn = struct {
 
         // TODO(magurotuna): don't use the hardcoded value. Maybe Cryptor should have a method to return AEAD tag length?
         const aead_tag_len = 16;
-        const payload = try packet.decryptPayload(
+        var payload = try packet.decryptPayload(
             &input,
             pkt_num,
             hdr.packet_num_len,
@@ -184,9 +187,20 @@ pub const Conn = struct {
             // TODO(magurotuna): do the following
             // 1. Parse one frame
             // 2. Process the parsed frame depending on the frame type
+            const frame = try Frame.decode(self.allocator, &payload);
+            try self.handleFrame(frame, pkt_num_space);
         }
 
-        return error.Unimplemented;
+        // Update the state of the packet number space with the current packet number.
+        try pkt_num_space.updatePacketNumber(pkt_num);
+
+        self.recv_count += 1;
+        // At this point, `input` should point to the very end of the packet, meaning that
+        // `input.pos` is the number of bytes we have just consumed in this method.
+        const read = input.pos;
+        self.recv_bytes += read;
+
+        return read;
     }
 
     /// https://www.rfc-editor.org/rfc/rfc9000.html#name-version-negotiation-packet
@@ -227,5 +241,29 @@ pub const Conn = struct {
         // Since we are implementing QUIC server, we just ignore Version Negotiation in received packets for now.
         // See also: https://www.rfc-editor.org/rfc/rfc9000.html#name-retry-packet
         return;
+    }
+
+    fn handleFrame(
+        self: *Self,
+        frame: Frame,
+        pkt_num_space: *packet_number_space.PacketNumberSpace,
+    ) !void {
+        _ = self;
+        _ = pkt_num_space;
+        switch (frame) {
+            .padding => {},
+            .ack => |ack| {
+                // TODO
+                _ = ack;
+            },
+            .crypto => |crypto| {
+                // TODO
+                _ = crypto;
+            },
+            .connection_close => |cc| {
+                // TODO
+                _ = cc;
+            },
+        }
     }
 };

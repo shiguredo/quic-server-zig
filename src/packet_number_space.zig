@@ -1,4 +1,5 @@
 const std = @import("std");
+const math = std.math;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const crypto = @import("./crypto.zig");
@@ -34,14 +35,14 @@ pub const PacketNumberSpaces = struct {
 
     /// Get the packet number space corresponding to the given packet type.
     pub fn getByPacketType(
-        self: Self,
+        self: *Self,
         packet_type: packet.PacketType,
-    ) error{NoCorrespondingPacketNameSpace}!PacketNumberSpace {
+    ) error{NoCorrespondingPacketNamespace}!*PacketNumberSpace {
         return switch (packet_type) {
-            .initial => self.initial,
-            .handshake => self.handshake,
-            .zero_rtt, .one_rtt => self.application_data,
-            .retry, .version_negotiation => error.NoCorrespondingPacketNameSpace,
+            .initial => &self.initial,
+            .handshake => &self.handshake,
+            .zero_rtt, .one_rtt => &self.application_data,
+            .retry, .version_negotiation => error.NoCorrespondingPacketNamespace,
         };
     }
 
@@ -56,6 +57,13 @@ pub const PacketNumberSpaces = struct {
 /// https://www.rfc-editor.org/rfc/rfc9000.html#ack-ranges
 pub const RangeSet = struct {
     // TODO(magurotuna)
+    const Self = @This();
+
+    pub fn push(self: *Self, packet_number: u64) !void {
+        _ = self;
+        _ = packet_number;
+        return error.Unimplemented;
+    }
 };
 
 /// Represent the QUIC's stream.
@@ -134,5 +142,12 @@ pub const PacketNumberSpace = struct {
         if (self.decryptor) |*x| x.deinit();
         if (self.zero_rtt_encryptor) |*x| x.deinit();
         if (self.zero_rtt_decryptor) |*x| x.deinit();
+    }
+
+    /// Update the state regarding the packet number.
+    pub fn updatePacketNumber(self: *Self, packet_number: u64) !void {
+        try self.recv_packet_number.put(packet_number, {});
+        try self.recv_packet_need_ack.push(packet_number);
+        self.largest_recv_packet_number = math.max(self.largest_recv_packet_number, packet_number);
     }
 };

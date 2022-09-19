@@ -18,8 +18,7 @@ pub const RangeBuf = struct {
     const Self = @This();
 
     pub fn from(allocator: Allocator, buf: []const u8, offset: usize, fin: bool) Allocator.Error!Self {
-        var data = try allocator.alloc(u8, buf.len);
-        mem.copy(u8, data, buf);
+        const data = try allocator.dupe(u8, buf);
 
         return Self{
             .data = data,

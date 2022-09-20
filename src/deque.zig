@@ -29,20 +29,23 @@ pub fn Deque(comptime T: type) type {
         const INITIAL_CAPACITY = 7; // 2^3 - 1
         const MINIMUM_CAPACITY = 1; // 2 - 1
 
-        pub const Error = error{
-            Overflow,
-        } || Allocator.Error;
-
         /// Creates an empty deque.
         /// Deinitialize with `deinit`.
-        pub fn init(allocator: Allocator) Error!Self {
+        pub fn init(allocator: Allocator) Allocator.Error!Self {
             return initCapacity(allocator, INITIAL_CAPACITY);
         }
 
         /// Creates an empty deque with space for at least `capacity` elements.
+        ///
+        /// Note that there is no guarantee that the created Deque has the specified capacity.
+        /// If it is too large, this method gives up meeting the capacity requirement.
+        /// In that case, it will instead create a Deque with the default capacity anyway.
+        ///
         /// Deinitialize with `deinit`.
-        pub fn initCapacity(allocator: Allocator, capacity: usize) Error!Self {
-            const effective_cap = try math.ceilPowerOfTwo(usize, math.max(capacity + 1, MINIMUM_CAPACITY + 1));
+        pub fn initCapacity(allocator: Allocator, capacity: usize) Allocator.Error!Self {
+            const effective_cap =
+                math.ceilPowerOfTwo(usize, math.max(capacity +| 1, MINIMUM_CAPACITY + 1)) catch
+                math.ceilPowerOfTwoAssert(usize, INITIAL_CAPACITY + 1);
             const buf = try allocator.alloc(T, effective_cap);
             return Self{
                 .tail = 0,
@@ -325,6 +328,17 @@ test "Deque works" {
         }
         try testing.expectEqual(@as(usize, 200), i);
     }
+}
+
+test "initCapacity with too large capacity" {
+    const testing = std.testing;
+
+    var deque = try Deque(i32).initCapacity(testing.allocator, math.maxInt(usize));
+    defer deque.deinit();
+
+    // The specified capacity `math.maxInt(usize)` was too large.
+    // Internally this is just ignored, and the default capacity is used instead.
+    try testing.expectEqual(@as(usize, 8), deque.buf.len);
 }
 
 test "appendSlice and prependSlice" {

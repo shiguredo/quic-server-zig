@@ -8,11 +8,13 @@ const Bytes = @import("./bytes.zig").Bytes;
 const packet = @import("./packet.zig");
 const version = @import("./version.zig");
 const Frame = @import("./frame/frame.zig").Frame;
+const tls = @import("./tls.zig");
 
 pub const Conn = struct {
     scid: ArrayList(u8),
     dcid: ArrayList(u8),
     pkt_num_spaces: packet_number_space.PacketNumberSpaces,
+    handshake: tls.Handshake,
 
     /// The QUIC version used in the connection.
     version: u32 = version.quic_v1,
@@ -62,10 +64,13 @@ pub const Conn = struct {
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
 
+        var handshake = tls.Handshake.init(allocator, .{});
+
         return Self{
             .scid = scid_owned,
             .dcid = dcid_owned,
             .pkt_num_spaces = pkt_num_spaces,
+            .handshake = handshake,
             .allocator = allocator,
         };
     }
@@ -248,8 +253,6 @@ pub const Conn = struct {
         frame: Frame,
         pkt_num_space: *packet_number_space.PacketNumberSpace,
     ) !void {
-        _ = self;
-        _ = pkt_num_space;
         switch (frame) {
             .padding => {},
             .ack => |ack| {
@@ -257,13 +260,29 @@ pub const Conn = struct {
                 _ = ack;
             },
             .crypto => |crypto| {
-                // TODO
-                _ = crypto;
+                try pkt_num_space.crypto_stream.recv.write(crypto.crypto_data);
+                const enc_level = pkt_num_space.toEncryptionLevel();
+                var crypto_buf: [1024]u8 = undefined;
+
+                while (true) {
+                    const n_emit = pkt_num_space.crypto_stream.recv.emit(&crypto_buf) catch break;
+                    try self.handshake.readHandshake(
+                        enc_level,
+                        crypto_buf[0..n_emit],
+                    );
+                }
+
+                try self.doHandshake();
             },
             .connection_close => |cc| {
                 // TODO
                 _ = cc;
             },
         }
+    }
+
+    fn doHandshake(self: *Self) !void {
+        _ = self;
+        return error.Unimplemented;
     }
 };

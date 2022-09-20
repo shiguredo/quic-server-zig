@@ -8,7 +8,7 @@ pub const Cryptor = cryptor.Cryptor;
 ///
 /// https://www.rfc-editor.org/rfc/rfc9001#name-carrying-tls-messages
 /// https://www.rfc-editor.org/rfc/rfc9001#name-interface-to-tls
-pub const Tls = struct {
+pub const Handshake = struct {
     /// https://www.rfc-editor.org/rfc/rfc9001#name-sending-and-receiving-hands
     ///
     /// > Before starting the handshake, QUIC provides TLS with the transport parameters
@@ -38,14 +38,17 @@ pub const Tls = struct {
     pub fn init(allocator: Allocator, transport_params: TransportParameters) Self {
         return Self{
             .transport_params = transport_params,
+            .rx_encryption_level = .initial,
+            .tx_encryption_level = .initial,
             .allocator = allocator,
         };
     }
 
     /// Consume plain TLS handshake data sent from the peer.
-    pub fn readHandshake(self: *Self, plaintext: []const u8) !void {
+    pub fn readHandshake(self: *Self, enc_level: EncryptionLevel, plaintext: []const u8) !void {
         // TODO(magurotuna)
         _ = self;
+        _ = enc_level;
         _ = plaintext;
     }
 
@@ -109,7 +112,7 @@ pub const Keys = struct {
 /// >   - Early data (0-RTT) keys
 /// >   - Handshake keys
 /// >   - Application data (1-RTT) keys
-const EncryptionLevel = enum {
+pub const EncryptionLevel = enum {
     initial,
     zero_rtt,
     handshake,

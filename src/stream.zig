@@ -12,7 +12,7 @@ pub const RangeBuf = struct {
     /// Offset of the buffer in the stream.
     offset: usize,
     /// The length of this chunk.
-    length: usize,
+    len: usize,
     /// Whether this buffer contains the final byte of the stream.
     fin: bool,
     /// Allocator used to allocate the internal buffer (`data`).
@@ -26,7 +26,7 @@ pub const RangeBuf = struct {
         return Self{
             .data = data,
             .offset = offset,
-            .length = data.len,
+            .len = data.len,
             .fin = fin,
             .allocator = allocator,
         };
@@ -61,6 +61,39 @@ pub const RecvBuf = struct {
 
     pub fn deinit(self: Self) void {
         self.data.deinit();
+    }
+
+    pub fn write(self: *Self, buf: RangeBuf) Allocator.Error!void {
+        // TODO(magurotuna): there are lots of things to be checked to perform this operation properly.
+        // But we just skip that for the moment.
+        try self.data.add(buf);
+    }
+
+    pub fn emit(self: *Self, out: []u8) !usize {
+        if (!self.ready())
+            return error.NothingToProcess;
+
+        var n_emit: usize = 0;
+
+        while (n_emit < out.len) {
+            const buf = self.data.peek() orelse break;
+            const rest = out.len - n_emit;
+
+            // The buffer does not fit into the remaining capacity of `out`; exit from the loop.
+            if (buf.len > rest)
+                break;
+
+            mem.copy(u8, out[n_emit..(n_emit + buf.len)], buf.data);
+            n_emit += buf.len;
+            _ = self.data.remove();
+        }
+
+        return n_emit;
+    }
+
+    /// Returns true if the stream has data to be read.
+    pub fn ready(self: Self) bool {
+        return self.data.count() > 0;
     }
 };
 

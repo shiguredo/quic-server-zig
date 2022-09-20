@@ -21,11 +21,11 @@ pub const PacketNumberSpaces = struct {
     const Self = @This();
 
     pub fn init(allocator: Allocator) Allocator.Error!Self {
-        var initial = try PacketNumberSpace.init(allocator);
+        var initial = try PacketNumberSpace.init(allocator, .initial);
         errdefer initial.deinit();
-        var handshake = try PacketNumberSpace.init(allocator);
+        var handshake = try PacketNumberSpace.init(allocator, .handshake);
         errdefer handshake.deinit();
-        var application_data = try PacketNumberSpace.init(allocator);
+        var application_data = try PacketNumberSpace.init(allocator, .application_data);
         errdefer application_data.deinit();
 
         return .{
@@ -88,6 +88,8 @@ pub const RangeSet = struct {
 /// > are also Initial packets. Similarly, Handshake packets are sent at the Handshake encryption level and
 /// > can only be acknowledged in Handshake packets.
 pub const PacketNumberSpace = struct {
+    space_type: SpaceType,
+
     largest_recv_packet_number: u64 = 0,
     largest_recv_packet_time: u64 = 0,
     largest_recv_non_probing_packet_number: u64 = 0,
@@ -132,13 +134,20 @@ pub const PacketNumberSpace = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator) Allocator.Error!Self {
+    const SpaceType = enum {
+        initial,
+        handshake,
+        application_data,
+    };
+
+    pub fn init(allocator: Allocator, space_type: SpaceType) Allocator.Error!Self {
         var recv_packet_number = AutoHashMap(u64, void).init(allocator);
         errdefer recv_packet_number.deinit();
         const crypto_stream = try stream.Stream.init(allocator, true, true);
         errdefer crypto_stream.deinit();
 
         return Self{
+            .space_type = space_type,
             .recv_packet_number = recv_packet_number,
             .crypto_stream = crypto_stream,
         };
@@ -158,5 +167,14 @@ pub const PacketNumberSpace = struct {
         try self.recv_packet_number.put(packet_number, {});
         try self.recv_packet_need_ack.push(packet_number);
         self.largest_recv_packet_number = math.max(self.largest_recv_packet_number, packet_number);
+    }
+
+    /// Get the TLS encryption level corresponding to this packet number space.
+    pub fn toEncryptionLevel(self: Self) tls.EncryptionLevel {
+        return switch (self.space_type) {
+            .initial => .initial,
+            .handshake => .handshake,
+            .application_data => .application_data,
+        };
     }
 };

@@ -57,7 +57,7 @@ pub const Conn = struct {
         dcid_owned.appendSliceAssumeCapacity(dcid);
 
         // Initialize three packet number spaces.
-        var pkt_num_spaces = packet_number_space.PacketNumberSpaces.init(allocator);
+        var pkt_num_spaces = try packet_number_space.PacketNumberSpaces.init(allocator);
         errdefer pkt_num_spaces.deinit();
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);

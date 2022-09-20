@@ -5,6 +5,7 @@ const AutoHashMap = std.AutoHashMap;
 const crypto = @import("./crypto.zig");
 const tls = @import("./tls.zig");
 const packet = @import("./packet.zig");
+const stream = @import("./stream.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
 ///
@@ -19,11 +20,18 @@ pub const PacketNumberSpaces = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator) Self {
+    pub fn init(allocator: Allocator) Allocator.Error!Self {
+        var initial = try PacketNumberSpace.init(allocator);
+        errdefer initial.deinit();
+        var handshake = try PacketNumberSpace.init(allocator);
+        errdefer handshake.deinit();
+        var application_data = try PacketNumberSpace.init(allocator);
+        errdefer application_data.deinit();
+
         return .{
-            .initial = PacketNumberSpace.init(allocator),
-            .handshake = PacketNumberSpace.init(allocator),
-            .application_data = PacketNumberSpace.init(allocator),
+            .initial = initial,
+            .handshake = handshake,
+            .application_data = application_data,
         };
     }
 
@@ -64,12 +72,6 @@ pub const RangeSet = struct {
         _ = packet_number;
         return error.Unimplemented;
     }
-};
-
-/// Represent the QUIC's stream.
-/// https://www.rfc-editor.org/rfc/rfc9000.html#name-streams
-pub const Stream = struct {
-    // TODO(magurotuna)
 };
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
@@ -126,13 +128,19 @@ pub const PacketNumberSpace = struct {
     /// > Unlike STREAM frames, which include a stream ID indicating to which stream the data
     /// > belongs, the CRYPTO frame carries data for a single stream **per encryption level**.
     /// > The stream does not have an explicit end, so CRYPTO frames do not have a FIN bit.
-    crypto_stream: Stream = .{},
+    crypto_stream: stream.Stream,
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator) Self {
+    pub fn init(allocator: Allocator) Allocator.Error!Self {
+        var recv_packet_number = AutoHashMap(u64, void).init(allocator);
+        errdefer recv_packet_number.deinit();
+        const crypto_stream = try stream.Stream.init(allocator, true, true);
+        errdefer crypto_stream.deinit();
+
         return Self{
-            .recv_packet_number = AutoHashMap(u64, void).init(allocator),
+            .recv_packet_number = recv_packet_number,
+            .crypto_stream = crypto_stream,
         };
     }
 
@@ -142,6 +150,7 @@ pub const PacketNumberSpace = struct {
         if (self.decryptor) |*x| x.deinit();
         if (self.zero_rtt_encryptor) |*x| x.deinit();
         if (self.zero_rtt_decryptor) |*x| x.deinit();
+        self.crypto_stream.deinit();
     }
 
     /// Update the state regarding the packet number.

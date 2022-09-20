@@ -51,6 +51,17 @@ pub const RecvBuf = struct {
 
     const RangeBufMinHeap = PriorityQueue(RangeBuf, void, rangeBufCompare);
     const Self = @This();
+
+    pub fn init(allocator: Allocator) Self {
+        return Self{
+            .data = RangeBufMinHeap.init(allocator, {}),
+            .length = 0,
+        };
+    }
+
+    pub fn deinit(self: Self) void {
+        self.data.deinit();
+    }
 };
 
 pub const SendBuf = struct {
@@ -61,8 +72,21 @@ pub const SendBuf = struct {
 
     const SendQueue = Deque(RangeBuf);
     const Self = @This();
+
+    pub fn init(allocator: Allocator) Allocator.Error!Self {
+        return Self{
+            .data = try SendQueue.init(allocator),
+            .length = 0,
+        };
+    }
+
+    pub fn deinit(self: Self) void {
+        self.data.deinit();
+    }
 };
 
+/// Represent the QUIC's stream.
+/// https://www.rfc-editor.org/rfc/rfc9000.html#name-streams
 pub const Stream = struct {
     /// Receive-side stream buffer.
     recv: RecvBuf,
@@ -72,4 +96,25 @@ pub const Stream = struct {
     bidi: bool,
     /// Whether the stream was created by the local endpoint.
     local: bool,
+
+    const Self = @This();
+
+    pub fn init(allocator: Allocator, bidi: bool, local: bool) Allocator.Error!Self {
+        const recv = RecvBuf.init(allocator);
+        errdefer recv.deinit();
+        const send = try SendBuf.init(allocator);
+        errdefer send.deinit();
+
+        return Self{
+            .recv = recv,
+            .send = send,
+            .bidi = bidi,
+            .local = local,
+        };
+    }
+
+    pub fn deinit(self: Self) void {
+        self.recv.deinit();
+        self.send.deinit();
+    }
 };

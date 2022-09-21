@@ -234,7 +234,6 @@ pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError |
     const max_packet_num_length = 4;
     const sample_length = 16;
 
-    var first = in.buf[0];
     var remaining = in.split().latter.buf;
 
     if (remaining.len < max_packet_num_length + sample_length)
@@ -243,10 +242,10 @@ pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError |
     var packet_number_in_buf = remaining[0..max_packet_num_length];
     var sample: [sample_length]u8 = undefined;
     mem.copy(u8, &sample, remaining[max_packet_num_length..(max_packet_num_length + sample_length)]);
-    decryptor.unprotectHeader(sample, &first, packet_number_in_buf);
+    decryptor.unprotectHeader(sample, &in.buf[0], packet_number_in_buf);
 
     // The last two bits of the unprotected first byte is packet number length minus 1.
-    const pkt_num_len = @intCast(usize, first & packet_num_len_bit) + 1;
+    const pkt_num_len = @intCast(usize, in.buf[0] & packet_num_len_bit) + 1;
     self.packet_num_len = pkt_num_len;
 
     const pkt_num = switch (pkt_num_len) {
@@ -259,7 +258,7 @@ pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError |
     self.packet_num = pkt_num;
 
     if (self.packet_type == .one_rtt)
-        self.key_phase = (first & key_phase_bit) != 0;
+        self.key_phase = (in.buf[0] & key_phase_bit) != 0;
 }
 
 fn toBytes(self: Self, bs: *Bytes) !void {

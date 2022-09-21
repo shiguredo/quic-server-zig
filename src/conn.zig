@@ -64,7 +64,8 @@ pub const Conn = struct {
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
 
-        var handshake = tls.Handshake.init(allocator, .{});
+        var handshake = try tls.Handshake.init(allocator, .{});
+        errdefer handshake.deinit();
 
         return Self{
             .scid = scid_owned,
@@ -266,7 +267,7 @@ pub const Conn = struct {
 
                 while (true) {
                     const n_emit = pkt_num_space.crypto_stream.recv.emit(&crypto_buf) catch break;
-                    try self.handshake.readHandshake(
+                    try self.handshake.recv(
                         enc_level,
                         crypto_buf[0..n_emit],
                     );
@@ -282,7 +283,12 @@ pub const Conn = struct {
     }
 
     fn doHandshake(self: *Self) !void {
-        _ = self;
-        return error.Unimplemented;
+        const res = try self.handshake.proceed();
+        if (res) |key_change| switch (key_change) {
+            .handshake => |hs| {
+                self.pkt_num_spaces.handshake.encryptor = hs.keys.local;
+                self.pkt_num_spaces.handshake.decryptor = hs.keys.remote;
+            },
+        };
     }
 };

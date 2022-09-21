@@ -2,14 +2,14 @@ const std = @import("std");
 const utils = @import("../utils.zig");
 const Bytes = @import("../bytes.zig").Bytes;
 
-const SupportedCipherSuites = std.EnumSet(CipherSuite).init(.{ .TLS_AES_128_GCM_SHA256 = true });
+const supported_cipher_suites = std.EnumSet(CipherSuite).init(.{ .TLS_AES_128_GCM_SHA256 = true });
 
 /// Pick up a cipher suite that we currently support, if any, from the given set of cipher suites.
 /// When there are multiple cipher suites included in the set, one that appears first in the set will be chosen.
 /// If there's no supported cipher suite this returns `null`.
 pub fn pickCipherSuite(cipher_suites: []const CipherSuite) ?CipherSuite {
     for (cipher_suites) |c| {
-        if (SupportedCipherSuites.contains(c))
+        if (supported_cipher_suites.contains(c))
             return c;
     }
     return null;

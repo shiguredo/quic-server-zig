@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 const crypto = std.crypto;
 const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
 const Aes256Gcm = crypto.aead.aes_gcm.Aes256Gcm;
@@ -37,6 +38,85 @@ pub fn initialSecret(
     var out: [CipherSuite.Hmac.mac_length]u8 = undefined;
     try hkdfExpandLabel(CipherSuite, common_secret, label, ctx, &out);
     return out;
+}
+
+/// Get the early secret from an optional pre-shared key.
+/// https://www.rfc-editor.org/rfc/rfc8446.html#section-7.1
+pub fn earlySecret(comptime CipherSuite: type, pre_shared_key: ?[]const u8) [CipherSuite.Hmac.mac_length]u8 {
+    const salt = [_]u8{};
+    // > If a given secret is not available, then the 0-value consisting of a
+    // > string of Hash.length bytes set to zeros is used.  Note that this
+    // > does not mean skipping rounds, so if PSK is not in use, Early Secret
+    // > will still be HKDF-Extract(0, 0).
+    const default_ikm = [_]u8{0x00} ** CipherSuite.Hmac.mac_length;
+    const ikm = pre_shared_key orelse &default_ikm;
+    return CipherSuite.Hkdf.extract(&salt, ikm);
+}
+
+/// Caculate "Handshake Secret" as described in RFC 8446:
+///
+/// https://www.rfc-editor.org/rfc/rfc8446.html#section-7.1
+/// 
+///           0
+///           |
+///           v
+/// PSK ->  HKDF-Extract = Early Secret
+///           |
+///           +-----> Derive-Secret(., "ext binder" | "res binder", "")
+///           |                     = binder_key
+///           |
+///           +-----> Derive-Secret(., "c e traffic", ClientHello)
+///           |                     = client_early_traffic_secret
+///           |
+///           +-----> Derive-Secret(., "e exp master", ClientHello)
+///           |                     = early_exporter_master_secret
+///           v
+///     Derive-Secret(., "derived", "")
+///           |
+///           v
+/// (EC)DHE -> HKDF-Extract = Handshake Secret
+pub fn handshakeSecret(
+    comptime CipherSuite: type,
+    early_secret: []const u8,
+    shared_secret: []const u8,
+) ![CipherSuite.Hmac.mac_length]u8 {
+    if (early_secret.len != CipherSuite.Hmac.mac_length)
+        return error.InvalidSecretLength;
+
+    const derived_secret = ds: {
+        var s: [CipherSuite.Hmac.mac_length]u8 = undefined;
+        mem.copy(u8, &s, early_secret);
+        break :ds try deriveSecret(CipherSuite, s, "derived", "");
+    };
+
+    return CipherSuite.Hkdf.extract(&derived_secret, shared_secret);
+}
+
+/// Caculate "Handshake Traffic Secret" as described in RFC 8446:
+///
+/// https://www.rfc-editor.org/rfc/rfc8446.html#section-7.1
+///
+/// (EC)DHE -> HKDF-Extract = Handshake Secret
+///           |
+///           +-----> Derive-Secret(., "c hs traffic",
+///           |                     ClientHello...ServerHello)
+///           |                     = client_handshake_traffic_secret
+///           |
+///           +-----> Derive-Secret(., "s hs traffic",
+///           |                     ClientHello...ServerHello)
+///           |                     = server_handshake_traffic_secret
+pub fn handshakeTrafficSecret(
+    comptime CipherSuite: type,
+    handshake_secret: [CipherSuite.Hmac.mac_length]u8,
+    ch_sh_msg: []const u8,
+    is_server: bool,
+) ![CipherSuite.Hmac.mac_length]u8 {
+    const label = if (is_server) "s hs traffic" else "c hs traffic";
+
+    var ch_sh_hash: [CipherSuite.Hash.digest_length]u8 = undefined;
+    CipherSuite.Hash.hash(ch_sh_msg, &ch_sh_hash, .{});
+
+    return try deriveSecret(CipherSuite, handshake_secret, label, &ch_sh_hash);
 }
 
 /// Derive AEAD Key (key) from the given secret.
@@ -106,6 +186,26 @@ fn hkdfExpandLabel(
     try hkdfLabel.encode(&bs);
 
     CipherSuite.Hkdf.expand(out, bs.split().former.buf, secret);
+}
+
+/// `Derive-Secret` function which is defined in RFC 8446:
+///
+/// https://www.rfc-editor.org/rfc/rfc8446.html#section-7.1
+///
+/// > Derive-Secret(Secret, Label, Messages) =
+/// >  HKDF-Expand-Label(Secret, Label,
+/// >                    Transcript-Hash(Messages), Hash.length)
+fn deriveSecret(
+    comptime CipherSuite: type,
+    secret: [CipherSuite.Hmac.mac_length]u8,
+    label: []const u8,
+    messages: []const u8,
+) ![CipherSuite.Hmac.mac_length]u8 {
+    var transcript_hash: [CipherSuite.Hash.digest_length]u8 = undefined;
+    CipherSuite.Hash.hash(messages, &transcript_hash, .{});
+    var out: [CipherSuite.Hmac.mac_length]u8 = undefined;
+    try hkdfExpandLabel(CipherSuite, secret, label, &transcript_hash, &out);
+    return out;
 }
 
 const HkdfLabel = struct {

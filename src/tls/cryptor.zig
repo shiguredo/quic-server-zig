@@ -10,6 +10,8 @@ const ChaCha20IETF = crypto.stream.chacha.ChaCha20IETF;
 const Aes128Gcm = crypto.aead.aes_gcm.Aes128Gcm;
 const Aes256Gcm = crypto.aead.aes_gcm.Aes256Gcm;
 const ChaCha20Poly1305 = crypto.aead.chacha_poly.ChaCha20Poly1305;
+const Sha256 = crypto.hash.sha2.Sha256;
+const Sha384 = crypto.hash.sha2.Sha384;
 const HmacSha256 = crypto.auth.hmac.sha2.HmacSha256;
 const HkdfSha256 = crypto.kdf.hkdf.HkdfSha256;
 const HmacSha384 = crypto.auth.hmac.sha2.HmacSha384;
@@ -116,6 +118,7 @@ pub const TLS_AES_128_GCM_SHA256 = struct {
     pub const Aead = Aes128Gcm;
     pub const Hmac = HmacSha256;
     pub const Hkdf = HkdfSha256;
+    pub const Hash = Sha256;
 
     const Self = @This();
 

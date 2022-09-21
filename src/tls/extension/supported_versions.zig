@@ -23,10 +23,6 @@ pub const ServerSupportedVersions = struct {
 
     selected_version: ProtocolVersion,
 
-    pub fn new(version: ProtocolVersion) Self {
-        return .{ .selected_version = version };
-    }
-
     pub fn encodedLength(self: Self) usize {
         _ = self;
         return utils.sizeOf(ProtocolVersion);

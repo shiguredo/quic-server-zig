@@ -94,17 +94,6 @@ pub const KeyShareServerHello = struct {
 
     const Self = @This();
 
-    pub fn new(allocator: Allocator, group: supported_groups.NamedGroup, server_public_key: []const u8) !Self {
-        const key_ex = try KeyExchange.fromSlice(allocator, server_public_key);
-        errdefer key_ex;
-        return Self{
-            .server_share = .{
-                .group = group,
-                .key_exchange = key_ex,
-            },
-        };
-    }
-
     pub fn encodedLength(self: Self) usize {
         return self.server_share.encodedLength();
     }

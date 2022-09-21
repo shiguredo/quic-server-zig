@@ -140,11 +140,12 @@ pub const Handshake = union(HandshakeType) {
 
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         const ty = try in.consume(HandshakeType.TagType);
-        _ = try in.consume(u24); // length
+        const length = try in.consume(u24);
+        var data_buf = Bytes{ .buf = try in.consumeBytes(@intCast(usize, length)) };
 
         return switch (@intToEnum(HandshakeType, ty)) {
-            .client_hello => .{ .client_hello = try ClientHello.decode(allocator, in) },
-            .server_hello => .{ .server_hello = try ServerHello.decode(allocator, in) },
+            .client_hello => .{ .client_hello = try ClientHello.decode(allocator, &data_buf) },
+            .server_hello => .{ .server_hello = try ServerHello.decode(allocator, &data_buf) },
             // TODO(magurotuna): implement
             else => unreachable,
         };
@@ -204,7 +205,7 @@ test "Handshake (ClientHello) decode" {
     // zig fmt: off
     var buf = [_]u8{
         0x01, // msg_type
-        0x00, 0x00, 0xc0, // length
+        0x00, 0x00, 0xb8, // length
 
         // Client Hello
 

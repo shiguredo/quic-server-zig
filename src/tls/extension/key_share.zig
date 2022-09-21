@@ -1,7 +1,7 @@
 const std = @import("std");
 const VariableLengthVector = @import("../../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../../bytes.zig").Bytes;
-const NamedGroup = @import("./supported_groups.zig").NamedGroup;
+const supported_groups = @import("./supported_groups.zig");
 
 pub const ClientShares = VariableLengthVector(KeyShareEntry, 65535);
 pub const KeyExchange = VariableLengthVector(u8, 65535);
@@ -74,9 +74,9 @@ test "decode KeyShareClientHello" {
 
     const shares = got.client_shares.data.items;
     try std.testing.expectEqual(@as(usize, 2), shares.len);
-    try std.testing.expectEqual(NamedGroup.x25519, shares[0].group);
+    try std.testing.expectEqual(supported_groups.NamedGroup.x25519, shares[0].group);
     try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02 }, shares[0].key_exchange.data.items);
-    try std.testing.expectEqual(NamedGroup.ffdhe2048, shares[1].group);
+    try std.testing.expectEqual(supported_groups.NamedGroup.ffdhe2048, shares[1].group);
     try std.testing.expectEqualSlices(u8, &.{0x03}, shares[1].key_exchange.data.items);
 }
 
@@ -136,7 +136,7 @@ test "decode KeyShareServerHello" {
     const got = try KeyShareServerHello.decode(std.testing.allocator, &in);
     defer got.deinit();
 
-    try std.testing.expectEqual(NamedGroup.x25519, got.server_share.group);
+    try std.testing.expectEqual(supported_groups.NamedGroup.x25519, got.server_share.group);
     try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02 }, got.server_share.key_exchange.data.items);
 }
 
@@ -147,7 +147,7 @@ test "decode KeyShareServerHello" {
 ///     opaque key_exchange<1..2^16-1>;
 /// } KeyShareEntry;
 pub const KeyShareEntry = struct {
-    group: NamedGroup,
+    group: supported_groups.NamedGroup,
     key_exchange: KeyExchange,
 
     const Self = @This();
@@ -162,7 +162,7 @@ pub const KeyShareEntry = struct {
     }
 
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
-        const group = try NamedGroup.decode(allocator, in);
+        const group = try supported_groups.NamedGroup.decode(allocator, in);
         errdefer group.deinit();
         const key_exchange = try KeyExchange.decode(allocator, in);
         errdefer key_exchange.deinit();
@@ -201,6 +201,17 @@ test "decode KeyShareEntry" {
     const got = try KeyShareEntry.decode(std.testing.allocator, &in);
     defer got.deinit();
 
-    try std.testing.expectEqual(NamedGroup.x25519, got.group);
+    try std.testing.expectEqual(supported_groups.NamedGroup.x25519, got.group);
     try std.testing.expectEqualSlices(u8, &.{ 0x01, 0x02 }, got.key_exchange.data.items);
+}
+
+/// Pick up a key share entry with the supported named group, if any, from the given set of entries.
+/// When there are multiple entries included in the set, one that appears first in the set will be chosen.
+/// If there's no supported entries this returns `null`.
+pub fn pickKeyShareEntry(entries: []const KeyShareEntry) ?KeyShareEntry {
+    for (entries) |e| {
+        if (supported_groups.supported_named_groups.contains(e.group))
+            return e;
+    }
+    return null;
 }

@@ -2,6 +2,34 @@ const std = @import("std");
 const utils = @import("../utils.zig");
 const Bytes = @import("../bytes.zig").Bytes;
 
+const SupportedCipherSuites = std.EnumSet(CipherSuite).init(.{ .TLS_AES_128_GCM_SHA256 = true });
+
+/// Pick up a cipher suite that we currently support, if any, from the given set of cipher suites.
+/// When there are multiple cipher suites included in the set, one that appears first in the set will be chosen.
+/// If there's no supported cipher suite this returns `null`.
+pub fn pickCipherSuite(cipher_suites: []const CipherSuite) ?CipherSuite {
+    for (cipher_suites) |c| {
+        if (SupportedCipherSuites.contains(c))
+            return c;
+    }
+    return null;
+}
+
+test "pickCipherSuite" {
+    try std.testing.expect(pickCipherSuite(&.{}) == null);
+    try std.testing.expect(pickCipherSuite(&.{.TLS_CHACHA20_POLY1305_SHA256}) == null);
+    try std.testing.expect(pickCipherSuite(&.{ .TLS_CHACHA20_POLY1305_SHA256, .TLS_AES_256_GCM_SHA384 }) == null);
+
+    try std.testing.expectEqual(
+        CipherSuite.TLS_AES_128_GCM_SHA256,
+        pickCipherSuite(&.{.TLS_AES_128_GCM_SHA256}).?,
+    );
+    try std.testing.expectEqual(
+        CipherSuite.TLS_AES_128_GCM_SHA256,
+        pickCipherSuite(&.{ .TLS_CHACHA20_POLY1305_SHA256, .TLS_AES_128_GCM_SHA256 }).?,
+    );
+}
+
 /// https://datatracker.ietf.org/doc/html/rfc9001#section-5.3
 ///
 /// > QUIC can use any of the cipher suites defined in [TLS13] with the

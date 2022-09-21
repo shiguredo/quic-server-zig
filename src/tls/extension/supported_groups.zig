@@ -156,3 +156,18 @@ test "decode NamedGroup" {
 
     try std.testing.expectEqual(NamedGroup.x25519, got);
 }
+
+pub const supported_named_groups = std.EnumSet(NamedGroup).init(.{
+    .x25519 = true,
+});
+
+/// Pick up a named group that we currently support, if any, from the given set of named groups.
+/// When there are multiple named groups included in the set, one that appears first in the set will be chosen.
+/// If there's no supported named group this returns `null`.
+pub fn pickNamedGroup(named_groups: []const NamedGroup) ?NamedGroup {
+    for (named_groups) |n| {
+        if (supported_named_groups.contains(n))
+            return n;
+    }
+    return null;
+}

@@ -34,6 +34,7 @@
 
 const std = @import("std");
 const mem = std.mem;
+const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const Bytes = @import("../bytes.zig").Bytes;
 const version = @import("../version.zig");
@@ -87,9 +88,43 @@ versions: ?ArrayList(u32),
 /// Key phase bit, protected using header protection. Only present in `OneRTT` packets.
 key_phase: bool,
 
+pub fn new(
+    allocator: Allocator,
+    packet_type: PacketType,
+    quic_version: u32,
+    dcid: []const u8,
+    scid: []const u8,
+    packet_number: u64,
+    packet_number_len: usize,
+    token: ?[]const u8,
+    versions: ?[]const u32,
+    key_phase: bool,
+) Allocator.Error!Self {
+    var dcid_clone = try allocator.dupe(u8, dcid);
+    errdefer allocator.free(dcid_clone);
+    var scid_clone = try allocator.dupe(u8, scid);
+    errdefer allocator.free(scid_clone);
+    var token_clone = if (token) |t| try allocator.dupe(u8, t) else null;
+    errdefer if (token_clone) |t| allocator.free(t);
+    var versions_clone = if (versions) |v| try allocator.dupe(u32, v) else null;
+    errdefer if (versions_clone) |v| allocator.free(v);
+
+    return Self{
+        .packet_type = packet_type,
+        .version = quic_version,
+        .dcid = ArrayList(u8).fromOwnedSlice(allocator, dcid_clone),
+        .scid = ArrayList(u8).fromOwnedSlice(allocator, scid_clone),
+        .packet_num = packet_number,
+        .packet_num_len = packet_number_len,
+        .token = if (token_clone) |t| ArrayList(u8).fromOwnedSlice(allocator, t) else null,
+        .versions = if (versions_clone) |v| ArrayList(u32).fromOwnedSlice(allocator, v) else null,
+        .key_phase = key_phase,
+    };
+}
+
 /// Decodes header from the given buffer.
 /// When the header is a short header, it assumes that the length of Destination Connection ID is 16 bytes.
-pub fn decode(allocator: std.mem.Allocator, buf: []u8) !Self {
+pub fn decode(allocator: Allocator, buf: []u8) !Self {
     var bs = Bytes{ .buf = buf };
     return fromBytes(allocator, &bs, temporary_dcid_len);
 }
@@ -136,7 +171,7 @@ pub fn format(
     try writer.print("key_phase = {}\n", .{self.key_phase});
 }
 
-pub fn fromBytes(allocator: std.mem.Allocator, bs: *Bytes, dcid_len: usize) !Self {
+pub fn fromBytes(allocator: Allocator, bs: *Bytes, dcid_len: usize) !Self {
     const first = try bs.consume(u8);
 
     if (!isLongHeader(first)) {
@@ -261,7 +296,7 @@ pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError |
         self.key_phase = (in.buf[0] & key_phase_bit) != 0;
 }
 
-fn toBytes(self: Self, bs: *Bytes) !void {
+pub fn toBytes(self: Self, bs: *Bytes) !void {
     var first: u8 = 0;
     first |= @intCast(u8, self.packet_num_len -| 1);
 

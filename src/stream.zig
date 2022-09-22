@@ -135,6 +135,28 @@ pub const SendBuf = struct {
 
         return data.len;
     }
+
+    /// Write data from the send buffer into the given buffer.
+    pub fn emit(self: *Self, buf: []u8) usize {
+        // TODO(magurotuna): this is very rough implementation. Refine it.
+
+        var done: usize = 0;
+        var left = buf.len;
+
+        while (left > 0) {
+            const peek_head = self.data.get(0) orelse break;
+            if (left < peek_head.len) break;
+
+            const head = self.data.popFront() orelse unreachable;
+            defer head.deinit();
+
+            mem.copy(u8, buf[done..(done + head.len)], head.data);
+            done += head.len;
+            left -= head.len;
+        }
+
+        return done;
+    }
 };
 
 /// Represent the QUIC's stream.

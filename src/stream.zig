@@ -7,7 +7,7 @@ const Deque = @import("./deque.zig").Deque;
 
 /// This type represents a split chunk of a QUIC's stream.
 pub const RangeBuf = struct {
-    /// The buffer holding the data.
+    /// The buffer holding the data. The ownership belongs to this struct.
     data: []const u8,
     /// Offset of the buffer in the stream.
     offset: usize,
@@ -98,10 +98,14 @@ pub const RecvBuf = struct {
 };
 
 pub const SendBuf = struct {
-    /// Chunks of data to be sent to the peer.
+    /// Chunks of data to be sent to the peer ordered by offset.
     data: SendQueue,
     /// The amount of data currently buffered.
     length: usize,
+    /// The maximum offset of data buffered in the stream.
+    offset: usize,
+
+    allocator: Allocator,
 
     const SendQueue = Deque(RangeBuf);
     const Self = @This();
@@ -110,11 +114,26 @@ pub const SendBuf = struct {
         return Self{
             .data = try SendQueue.init(allocator),
             .length = 0,
+            .offset = 0,
+            .allocator = allocator,
         };
     }
 
     pub fn deinit(self: Self) void {
         self.data.deinit();
+    }
+
+    pub fn write(self: *Self, data: []const u8, fin: bool) !usize {
+        // TODO(magurotuna): no need to queue data that's already been acked.
+        const max_offset = self.offset + data.len;
+        _ = max_offset;
+
+        const range_buf = try RangeBuf.from(self.allocator, data, self.offset, fin);
+        try self.data.pushBack(range_buf);
+        self.offset += data.len;
+        self.length += data.len;
+
+        return data.len;
     }
 };
 

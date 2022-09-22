@@ -59,6 +59,14 @@ pub const PacketNumberSpaces = struct {
         self.initial.encryptor = keys.local;
         self.initial.decryptor = keys.remote;
     }
+
+    /// Fetch TLS related messages from the TLS stack and set them to crypto_stream
+    /// at each packet number space.
+    pub fn fetchTlsMessages(self: *Self, tls_handshake: *tls.Handshake) !void {
+        try self.initial.fetchTlsMessages(tls_handshake);
+        try self.handshake.fetchTlsMessages(tls_handshake);
+        try self.application_data.fetchTlsMessages(tls_handshake);
+    }
 };
 
 /// Manage the acknowledged ranges.
@@ -176,5 +184,19 @@ pub const PacketNumberSpace = struct {
             .handshake => .handshake,
             .application_data => .application_data,
         };
+    }
+    /// Fetch TLS related messages from the TLS stack and set them to crypto_stream.
+    pub fn fetchTlsMessages(self: *Self, tls_handshake: *tls.Handshake) !void {
+        const enc_level = self.toEncryptionLevel();
+        var buf: [1024]u8 = undefined;
+
+        while (true) {
+            const n_emit = tls_handshake.emit(enc_level, &buf);
+
+            if (n_emit == 0)
+                break;
+
+            _ = try self.crypto_stream.send.write(buf[0..n_emit], false);
+        }
     }
 };

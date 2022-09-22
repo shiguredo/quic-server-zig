@@ -249,6 +249,17 @@ pub const Bytes = struct {
             .latter = .{ .buf = self.buf[self.pos..] },
         };
     }
+
+    /// Creates two new Bytes by splitting the internal buffer at the given position.
+    pub fn splitAt(self: Self, index: usize) Error!Split {
+        if (index > self.buf.len)
+            return Error.OutOfRange;
+
+        return Split{
+            .former = .{ .buf = self.buf[0..index] },
+            .latter = .{ .buf = self.buf[index..] },
+        };
+    }
 };
 
 /// Given the first byte, parses the length of variable-length integer,

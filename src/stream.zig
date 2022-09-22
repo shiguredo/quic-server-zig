@@ -157,6 +157,12 @@ pub const SendBuf = struct {
 
         return done;
     }
+
+    /// Return `true` if there is data to be written.
+    pub fn ready(self: Self) bool {
+        // TODO(magurotuna): take ack into account.
+        return self.data.len() != 0;
+    }
 };
 
 /// Represent the QUIC's stream.
@@ -190,5 +196,10 @@ pub const Stream = struct {
     pub fn deinit(self: Self) void {
         self.recv.deinit();
         self.send.deinit();
+    }
+
+    /// Return `true` if the stream has data to be sent to the peer.
+    pub fn isFlushable(self: Self) bool {
+        return self.send.ready();
     }
 };

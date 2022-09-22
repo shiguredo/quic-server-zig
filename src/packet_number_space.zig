@@ -199,4 +199,8 @@ pub const PacketNumberSpace = struct {
             _ = try self.crypto_stream.send.write(buf[0..n_emit], false);
         }
     }
+
+    pub fn ready(self: Self) bool {
+        return self.crypto_stream.isFlushable();
+    }
 };

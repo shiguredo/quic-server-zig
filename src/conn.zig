@@ -1,14 +1,16 @@
 const std = @import("std");
 const net = std.net;
 const mem = std.mem;
+const math = std.math;
 const Allocator = mem.Allocator;
 const ArrayList = std.ArrayList;
 const packet_number_space = @import("./packet_number_space.zig");
-const Bytes = @import("./bytes.zig").Bytes;
+const bytes = @import("./bytes.zig");
 const packet = @import("./packet.zig");
 const version = @import("./version.zig");
 const Frame = @import("./frame/frame.zig").Frame;
 const tls = @import("./tls.zig");
+const encode_crypto_header = @import("./frame/crypto.zig").encode_crypto_header;
 
 pub const Conn = struct {
     scid: ArrayList(u8),
@@ -31,6 +33,8 @@ pub const Conn = struct {
     pub const Error = error{
         /// All of the received datagram has been processed.
         DoneReceive,
+        /// All of the QUIC packets to be sent has been processed.
+        DoneSend,
         /// Unable to process the givenn packet because of the unknown QUIC version.
         UnknownQUICVersion,
         /// Unable to process the given packet because it's in invalid form.
@@ -90,7 +94,10 @@ pub const Conn = struct {
 
         // One UDP datagram may contain multiple QUIC packets. We handle each packet one by one.
         while (left > 0) {
-            const read = try self.recvSingle(buf);
+            const read = self.recvSingle(buf) catch |e| switch (e) {
+                error.DoneReceive => break,
+                else => return e,
+            };
             left -= read;
             done += read;
         }
@@ -100,7 +107,7 @@ pub const Conn = struct {
 
     /// Process just one QUIC packet from the buffer and returns the number of bytes processed.
     fn recvSingle(self: *Self, buf: []u8) !usize {
-        var input = Bytes{ .buf = buf };
+        var input = bytes.Bytes{ .buf = buf };
 
         var hdr = try packet.Header.fromBytes(self.allocator, &input, self.dcid.items.len);
         defer hdr.deinit();
@@ -190,9 +197,6 @@ pub const Conn = struct {
 
         // Process all frames in the payload.
         while (payload.remainingCapacity() > 0) {
-            // TODO(magurotuna): do the following
-            // 1. Parse one frame
-            // 2. Process the parsed frame depending on the frame type
             const frame = try Frame.decode(self.allocator, &payload);
             try self.handleFrame(frame, pkt_num_space);
         }
@@ -289,6 +293,130 @@ pub const Conn = struct {
                 self.pkt_num_spaces.handshake.encryptor = hs.keys.local;
                 self.pkt_num_spaces.handshake.decryptor = hs.keys.remote;
             },
+        };
+
+        // Move TLS Handshake messages to the send buffer dedicated to CRYPTO frames.
+        try self.pkt_num_spaces.fetchTlsMessages(&self.handshake);
+    }
+
+    pub fn send(self: *Self, buf: []u8) !usize {
+        if (buf.len == 0)
+            return error.BufferTooShort;
+
+        var done: usize = 0;
+        var left: usize = buf.len;
+
+        // Write one or more QUIC packets into the buffer as long as there's space.
+        // TODO(magurotuna): probably we should respect the maximum UDP payload size limit.
+        while (left > 0) {
+            const res = self.sendSingle(buf[done..]) catch |e| switch (e) {
+                error.DoneSend => break,
+                else => return e,
+            };
+            done += res.n_written;
+            left -= res.n_written;
+
+            // No other packets must not be put after a OneRTT (short header) packet.
+            //
+            // https://www.rfc-editor.org/rfc/rfc9000.html#section-12.2
+            //
+            // > A packet with a short header does not include a length, so it can only
+            // > be the last packet included in a UDP datagram.
+            if (res.packet_type == .one_rtt)
+                break;
+        }
+
+        return done;
+    }
+
+    const SendSignleResult = struct {
+        n_written: usize,
+        packet_type: packet.PacketType,
+    };
+
+    pub fn sendSingle(self: *Self, buf: []u8) !SendSignleResult {
+        if (buf.len == 0)
+            return error.BufferTooShort;
+
+        var out = bytes.Bytes{ .buf = buf };
+        var left = out.remainingCapacity();
+
+        const pkt_type = self.pkt_num_spaces.writePacketType() orelse
+            return error.DoneSend;
+
+        const pkt_num_space = self.pkt_num_spaces.getByPacketType(pkt_type) catch unreachable;
+
+        const pkt_num = pkt_num_space.next_packet_number;
+        // TODO(magurotuna): use shorter length if pkt_num is a small number
+        const pkt_num_len = 4;
+
+        const hdr = try packet.Header.new(
+            self.allocator,
+            pkt_type,
+            self.version,
+            self.dcid.items,
+            self.scid.items,
+            pkt_num,
+            pkt_num_len,
+            null,
+            null,
+            false,
+        );
+
+        try hdr.toBytes(&out);
+
+        const aead_len = 16;
+        // We make an assumption that the `Length` field, which is only present in long
+        // header packets, can be encoded with a 2-byte variable-length integer.
+        const payload_length_len: usize = if (pkt_type == .one_rtt) 0 else 2;
+        // Minimum length of bytes required to write the packet.
+        const overhead = out.pos + pkt_num_len + aead_len + payload_length_len;
+
+        left -= math.sub(usize, left, overhead) catch return error.DoneSend;
+
+        const length_field_offset = out.pos;
+        // The total length of payload is unknown at this point. We reserve certain bytes
+        // so we can populate it later.
+        try out.skip(payload_length_len);
+
+        // TODO(magurotuna): use the packet number encoding algorithm
+        try out.put(u32, @intCast(u32, pkt_num));
+
+        const payload_offset = out.pos;
+
+        // TODO(magurotuna): create ACK frame
+
+        // CRYPTO frame
+        if (pkt_num_space.crypto_stream.isFlushable()) {
+            const crypto_offset = pkt_num_space.crypto_stream.send.offset;
+            const hdr_len = 1 + // frame type
+                bytes.varIntLength(@intCast(u64, crypto_offset)) + // offset
+                2; // length, always encode as 2-byte varint
+
+            if (math.sub(usize, left, hdr_len)) |max_len| {
+                var crypto_hdr = bytes.Bytes{ .buf = try out.consumeBytes(hdr_len) };
+
+                // Write crypto data before the header to figure out the data length.
+                const crypto_data_len = pkt_num_space.crypto_stream.send.emit(try out.peekBytes(max_len));
+                try out.skip(crypto_data_len);
+
+                // Write the frame header.
+                try encode_crypto_header(crypto_offset, crypto_data_len, &crypto_hdr);
+            } else |_| {
+                // There's no room enough for the CRYPTO frame. Just skip this encoding.
+            }
+        }
+
+        // Update the payload length with the actual value.
+        const payload_end_offset = out.pos;
+        var length_field_buf = (try out.splitAt(length_field_offset)).latter;
+        try length_field_buf.putVarInt(@intCast(u64, payload_end_offset - payload_offset));
+
+        pkt_num_space.next_packet_number += 1;
+
+        return SendSignleResult{
+            .n_written = 0,
+            .packet_type = pkt_type,
         };
     }
 };

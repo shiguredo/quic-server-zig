@@ -35,6 +35,12 @@ pub const Crypto = struct {
     }
 };
 
+pub fn encode_crypto_header(offset: usize, length: usize, out: *bytes.Bytes) !void {
+    try out.putVarInt(Crypto.frame_type);
+    try out.putVarInt(@intCast(usize, offset));
+    try out.putVarInt(@intCast(usize, length));
+}
+
 test "decode CRYPTO frame" {
     {
         // Comes from the actual data sent from cloudflare/quiche.

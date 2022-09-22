@@ -142,7 +142,7 @@ pub const PacketNumberSpace = struct {
 
     const Self = @This();
 
-    const SpaceType = enum {
+    pub const SpaceType = enum {
         initial,
         handshake,
         application_data,

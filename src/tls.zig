@@ -127,12 +127,15 @@ pub const Handshake = struct {
     }
 
     /// Emit plain TLS handshake data to the given `buf`.
-    pub fn emit(self: *Self, buf: []u8) usize {
+    pub fn emit(self: *Self, enc_level: EncryptionLevel, buf: []u8) usize {
         assert(buf.len > 0);
 
         var n_emit: usize = 0;
 
-        while (self.send_buf.popFront()) |x| {
+        var send_buf = self.send_bufs.getPtr(enc_level);
+
+        // TODO(magurotuna): This may be inefficient. Cosnider using mem.copy somehow.
+        while (send_buf.popFront()) |x| {
             buf[n_emit] = x;
             n_emit += 1;
             if (n_emit >= buf.len)

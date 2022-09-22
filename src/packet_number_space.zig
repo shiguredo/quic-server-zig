@@ -67,6 +67,22 @@ pub const PacketNumberSpaces = struct {
         try self.handshake.fetchTlsMessages(tls_handshake);
         try self.application_data.fetchTlsMessages(tls_handshake);
     }
+
+    /// Get the packet type for the next outgoing packet.
+    /// Return `null` if no suitable packet type is found.
+    pub fn writePacketType(self: Self) ?packet.PacketType {
+        // We don't send packets when the encryptor has not yet been derived for the space.
+        if (self.initial.encryptor != null and self.initial.ready())
+            return .initial;
+
+        if (self.handshake.encryptor != null and self.handshake.ready())
+            return .handshake;
+
+        if (self.application_data.encryptor != null and self.application_data.ready())
+            return .one_rtt;
+
+        return null;
+    }
 };
 
 /// Manage the acknowledged ranges.

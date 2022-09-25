@@ -138,6 +138,11 @@ pub const Conn = struct {
             self.version = hdr.version;
         }
 
+        // At this point version negotiation was already performed, so
+        // ignore packets that don't match the connection's version.
+        if (hdr.packet_type != .one_rtt and hdr.version != self.version)
+            return Error.DoneReceive;
+
         const pkt_num_and_payload_len = if (hdr.packet_type == .one_rtt)
             // 1-RTT packets (i.e. long header packets) don't have the Length field, so the length of
             // the payload is implicit. We use the the number of unprocessed bytes as the packet number

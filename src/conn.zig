@@ -94,7 +94,7 @@ pub const Conn = struct {
 
         // One UDP datagram may contain multiple QUIC packets. We handle each packet one by one.
         while (left > 0) {
-            const read = self.recvSingle(buf) catch |e| switch (e) {
+            const read = self.recvSingle(buf[done..]) catch |e| switch (e) {
                 error.DoneReceive => break,
                 else => return e,
             };

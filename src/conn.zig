@@ -169,7 +169,14 @@ pub const Conn = struct {
             // until the decryptor is ready so that we can decrypt them later.
             // But we skip implementing it for now.
 
-            return Error.CryptoFail;
+            // We just discard the packet if the encryption setup is not yet ready.
+            //
+            // https://www.rfc-editor.org/rfc/rfc9000.html#name-coalescing-packets
+            //
+            // > For example, if decryption fails (because the keys are not available or for any other reason),
+            // > the receiver MAY either discard or buffer the packet for later processing and MUST attempt to
+            // > process the remaining packets.
+            return Error.DoneReceive;
         };
 
         try hdr.unprotect(&input, decryptor);

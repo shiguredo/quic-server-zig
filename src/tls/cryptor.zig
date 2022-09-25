@@ -234,10 +234,10 @@ pub const TLS_AES_128_GCM_SHA256 = struct {
             first.* ^= mask[0] & 0x1f;
         }
 
-        const pkt_len = (first.* & 0x03) + 1;
+        const pkt_num_len = (first.* & 0x03) + 1;
 
         var i: usize = 0;
-        while (i < pkt_len) : (i += 1) {
+        while (i < pkt_num_len) : (i += 1) {
             packet_number[i] ^= mask[i + 1];
         }
     }

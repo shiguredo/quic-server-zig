@@ -46,18 +46,24 @@ pub const RangeSet = struct {
 
         var cur_range = self.prev(start);
         while (cur_range) |r| {
-            if (rangeOverlap(r.*, range)) {
-                start = math.min(start, r.*.start);
-                end = math.max(end, r.*.end);
-                var entry = self.inner.getEntryFor(r.*);
-                assert(entry.node != null);
-                const orig_node_ptr = entry.node.?;
-                defer self.allocator.destroy(orig_node_ptr);
-                entry.set(null);
-            } else {
+            if (!rangeOverlap(r.*, range))
                 break;
-            }
+
+            start = math.min(start, r.*.start);
+            end = math.max(end, r.*.end);
+            self.removeRange(r.*);
             cur_range = self.prev(start);
+        }
+
+        cur_range = self.next(start);
+        while (cur_range) |r| {
+            if (!rangeOverlap(range, r.*))
+                break;
+
+            start = math.min(start, r.*.start);
+            end = math.max(end, r.*.end);
+            self.removeRange(r.*);
+            cur_range = self.next(start);
         }
 
         const new_range = Range{ .start = start, .end = end };
@@ -103,6 +109,13 @@ pub const RangeSet = struct {
         }.f;
 
         return rec(self.inner.root, point, null);
+    }
+
+    fn removeRange(self: *Self, range: Range) void {
+        var entry = self.inner.getEntryFor(range);
+        const orig_node_ptr = entry.node orelse return;
+        defer self.allocator.destroy(orig_node_ptr);
+        entry.set(null);
     }
 };
 
@@ -179,4 +192,18 @@ test "RangeSet next" {
     try std.testing.expectEqual(@as(u64, 5), set.next(5).?.end);
 
     try std.testing.expect(set.next(6) == null);
+
+    // This will be merged with the range that was inserted above.
+    try set.insert(.{ .start = 4, .end = 7 });
+
+    try std.testing.expectEqual(@as(u64, 3), set.next(1).?.start);
+    try std.testing.expectEqual(@as(u64, 7), set.next(1).?.end);
+
+    try std.testing.expectEqual(@as(u64, 3), set.next(3).?.start);
+    try std.testing.expectEqual(@as(u64, 7), set.next(3).?.end);
+
+    try std.testing.expectEqual(@as(u64, 3), set.next(7).?.start);
+    try std.testing.expectEqual(@as(u64, 7), set.next(7).?.end);
+
+    try std.testing.expect(set.next(8) == null);
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const math = std.math;
 const Treap = std.Treap;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 pub const Range = struct {
     start: u64,
@@ -40,10 +41,29 @@ pub const RangeSet = struct {
     }
 
     pub fn insert(self: *Self, range: Range) Allocator.Error!void {
-        // TODO
-        var e = self.inner.getEntryFor(range);
+        var start = range.start;
+        var end = range.end;
+
+        var cur_range = self.prev(start);
+        while (cur_range) |r| {
+            if (rangeOverlap(r.*, range)) {
+                start = math.min(start, r.*.start);
+                end = math.max(end, r.*.end);
+                var entry = self.inner.getEntryFor(r.*);
+                assert(entry.node != null);
+                const orig_node_ptr = entry.node.?;
+                defer self.allocator.destroy(orig_node_ptr);
+                entry.set(null);
+            } else {
+                break;
+            }
+            cur_range = self.prev(start);
+        }
+
+        const new_range = Range{ .start = start, .end = end };
+        var e = self.inner.getEntryFor(new_range);
         var node = try self.allocator.create(InnerTree.Node);
-        node.key = range;
+        node.key = new_range;
         e.set(node);
     }
 
@@ -84,6 +104,10 @@ fn compareRange(a: Range, b: Range) math.Order {
     return math.order(a.end, b.end);
 }
 
+fn rangeOverlap(smaller: Range, greater: Range) bool {
+    return smaller.start <= greater.start and greater.start <= smaller.end;
+}
+
 test "RangeSet prev" {
     var set = RangeSet.init(std.testing.allocator);
     defer set.deinit();
@@ -102,4 +126,21 @@ test "RangeSet prev" {
 
     try std.testing.expectEqual(@as(u64, 1), set.prev(4).?.start);
     try std.testing.expectEqual(@as(u64, 3), set.prev(4).?.end);
+
+    // This will be merged with the range that was inserted above.
+    try set.insert(.{ .start = 2, .end = 5 });
+
+    try std.testing.expect(set.prev(0) == null);
+
+    try std.testing.expectEqual(@as(u64, 1), set.prev(1).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.prev(1).?.end);
+
+    try std.testing.expectEqual(@as(u64, 1), set.prev(2).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.prev(2).?.end);
+
+    try std.testing.expectEqual(@as(u64, 1), set.prev(5).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.prev(5).?.end);
+
+    try std.testing.expectEqual(@as(u64, 1), set.prev(6).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.prev(6).?.end);
 }

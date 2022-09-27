@@ -69,26 +69,35 @@ pub const RangeSet = struct {
 
     fn prev(self: Self, point: u64) ?*Range {
         const rec = struct {
-            fn cmp(range: Range, x: u64) enum { smaller, included, greater } {
-                if (x < range.start)
-                    return .smaller;
-
-                if (range.end < x)
-                    return .greater;
-
-                return .included;
-            }
-
             fn f(cur_node: ?*InnerTree.Node, x: u64, candidate: ?*Range) ?*Range {
                 const n = cur_node orelse return candidate;
 
                 const left = n.*.children[0];
                 const right = n.*.children[1];
 
-                return switch (cmp(n.*.key, x)) {
+                return switch (compareRangeWithPoint(n.*.key, x)) {
                     .included => &n.*.key,
                     .smaller => f(left, x, candidate),
                     .greater => f(right, x, &n.*.key),
+                };
+            }
+        }.f;
+
+        return rec(self.inner.root, point, null);
+    }
+
+    fn next(self: Self, point: u64) ?*Range {
+        const rec = struct {
+            fn f(cur_node: ?*InnerTree.Node, x: u64, candidate: ?*Range) ?*Range {
+                const n = cur_node orelse return candidate;
+
+                const left = n.*.children[0];
+                const right = n.*.children[1];
+
+                return switch (compareRangeWithPoint(n.*.key, x)) {
+                    .included => &n.*.key,
+                    .smaller => f(right, x, &n.*.key),
+                    .greater => f(left, x, candidate),
                 };
             }
         }.f;
@@ -102,6 +111,16 @@ fn compareRange(a: Range, b: Range) math.Order {
         return math.order(a.start, b.start);
 
     return math.order(a.end, b.end);
+}
+
+fn compareRangeWithPoint(range: Range, point: u64) enum { smaller, included, greater } {
+    if (point < range.start)
+        return .smaller;
+
+    if (range.end < point)
+        return .greater;
+
+    return .included;
 }
 
 fn rangeOverlap(smaller: Range, greater: Range) bool {
@@ -143,4 +162,21 @@ test "RangeSet prev" {
 
     try std.testing.expectEqual(@as(u64, 1), set.prev(6).?.start);
     try std.testing.expectEqual(@as(u64, 5), set.prev(6).?.end);
+}
+
+test "RangeSet next" {
+    var set = RangeSet.init(std.testing.allocator);
+    defer set.deinit();
+    try set.insert(.{ .start = 3, .end = 5 });
+
+    try std.testing.expectEqual(@as(u64, 3), set.next(1).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.next(1).?.end);
+
+    try std.testing.expectEqual(@as(u64, 3), set.next(3).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.next(3).?.end);
+
+    try std.testing.expectEqual(@as(u64, 3), set.next(5).?.start);
+    try std.testing.expectEqual(@as(u64, 5), set.next(5).?.end);
+
+    try std.testing.expect(set.next(6) == null);
 }

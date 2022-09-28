@@ -106,15 +106,21 @@ pub const RangeSet = struct {
             const cur = self.cur orelse return null;
 
             // Look for the node containing the next smallest range.
-            // If the current node has the right subtree, the target node is at the leftmost node of the right subtree.
-            // If it doesn't, the target is the parent of the current node
-            // only if the current node belongs to the left subtree of the parent.
+            // If the current node has the right subtree, the target node lies in the leftmost node of the right subtree.
+            // If it doesn't, we need to go upward until we find a node that is the left child of its parent node.
+            // The parent node of such a node is what we are looking for.
             const next_min = if (cur.children[1]) |right|
                 findMin(right)
-            else if (cur.parent != null and cur.parent.?.children[0] == cur)
-                cur.parent
-            else
-                null;
+            else blk: {
+                var c = cur;
+                var p = c.parent;
+                // Go upward in the tree while the current node is NOT the left child of its parent.
+                while (p != null and p.?.children[0] != c) {
+                    c = p.?;
+                    p = p.?.parent;
+                }
+                break :blk p;
+            };
 
             self.cur = next_min;
 

@@ -99,6 +99,14 @@ pub const RangeSet = struct {
         return node;
     }
 
+    fn findMax(root: ?*Node) ?*Node {
+        var node = root;
+        while (node) |cur| {
+            node = cur.children[1] orelse break;
+        }
+        return node;
+    }
+
     pub const Iterator = struct {
         cur: ?*Node,
 
@@ -133,6 +141,42 @@ pub const RangeSet = struct {
         var min_range = findMin(self.inner.root);
 
         return .{ .cur = min_range };
+    }
+
+    pub const ReverseIterator = struct {
+        cur: ?*Node,
+
+        pub fn prev(self: *ReverseIterator) ?*Range {
+            const cur = self.cur orelse return null;
+
+            // Look for the node containing the next largest range.
+            // If the current node has the left subtree, the target node lies in the rightmost node of the left subtree.
+            // If it doesn't, we need to go upward until we find a node that is the right child of its parent node.
+            // The parent node of such a node is what we are looking for.
+            const next_max = if (cur.children[0]) |left|
+                findMax(left)
+            else blk: {
+                var c = cur;
+                var p = c.parent;
+                // Go upward in the tree while the current node is NOT the right child of its parent.
+                while (p != null and p.?.children[1] != c) {
+                    c = p.?;
+                    p = p.?.parent;
+                }
+                break :blk p;
+            };
+
+            self.cur = next_max;
+
+            return &cur.key;
+        }
+    };
+
+    pub fn reverseIterator(self: *const Self) ReverseIterator {
+        // Look for the maximum range in the tree.
+        var max_range = findMax(self.inner.root);
+
+        return .{ .cur = max_range };
     }
 
     fn prev(self: Self, point: u64) ?*Range {
@@ -233,6 +277,30 @@ const RangeSetTest = struct {
             .{ .start = 20, .end = 29 },
         ));
         try std.testing.expect(it.next() == null);
+    }
+
+    test "reverseIterator" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+
+        try set.insert(.{ .start = 1, .end = 3 });
+        try set.insert(.{ .start = 20, .end = 29 });
+        try set.insert(.{ .start = 7, .end = 9 });
+
+        var it = set.reverseIterator();
+        try std.testing.expect(eq(
+            it.prev().?.*,
+            .{ .start = 20, .end = 29 },
+        ));
+        try std.testing.expect(eq(
+            it.prev().?.*,
+            .{ .start = 7, .end = 9 },
+        ));
+        try std.testing.expect(eq(
+            it.prev().?.*,
+            .{ .start = 1, .end = 3 },
+        ));
+        try std.testing.expect(it.prev() == null);
     }
 
     test "add" {

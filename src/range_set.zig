@@ -1,6 +1,7 @@
 const std = @import("std");
 const math = std.math;
 const Treap = std.Treap;
+const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
@@ -89,6 +90,37 @@ pub const RangeSet = struct {
         var node = try self.allocator.create(Node);
         node.key = new_range;
         e.set(node);
+    }
+
+    pub fn removeUntil(self: *Self, upper: u64) Allocator.Error!void {
+        const allocator = std.heap.page_allocator;
+        var removes = ArrayList(Range).init(allocator);
+        defer removes.deinit();
+
+        {
+            var it = self.iterator();
+            while (it.next()) |range| {
+                if (upper < range.start)
+                    break;
+
+                try removes.append(range.*);
+            }
+        }
+
+        var remaining: ?Range = null;
+        for (removes.items) |range| {
+            if (range.start <= upper and upper < range.end) {
+                remaining = .{ .start = upper + 1, .end = range.end };
+            }
+            var entry = self.inner.getEntryFor(range);
+            const orig_node_ptr = entry.node orelse continue;
+            defer self.allocator.destroy(orig_node_ptr);
+            entry.set(null);
+        }
+
+        if (remaining) |r| {
+            try self.insert(r);
+        }
     }
 
     pub const Iterator = struct {
@@ -344,6 +376,41 @@ const RangeSetTest = struct {
         // This overlaps with the existing two ranges.
         // As a result we will get a single range of [0, 10].
         try set.insert(.{ .start = 4, .end = 9 });
+        try std.testing.expectEqual(@as(usize, 1), set.count());
+    }
+
+    test "removeUntil" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+
+        try set.insert(.{ .start = 9, .end = 13 });
+        try set.insert(.{ .start = 20, .end = 30 });
+        try set.insert(.{ .start = 1, .end = 3 });
+
+        try std.testing.expectEqual(@as(usize, 3), set.count());
+        try set.removeUntil(5);
+        try std.testing.expectEqual(@as(usize, 2), set.count());
+        try set.removeUntil(10);
+        try std.testing.expectEqual(@as(usize, 2), set.count());
+        var it = set.iterator();
+        try std.testing.expect(eq(
+            it.next().?.*,
+            .{ .start = 11, .end = 13 },
+        ));
+        try std.testing.expect(eq(
+            it.next().?.*,
+            .{ .start = 20, .end = 30 },
+        ));
+        try std.testing.expect(it.next() == null);
+
+        try set.add(42);
+        try std.testing.expectEqual(@as(usize, 3), set.count());
+        try set.removeUntil(42);
+        try std.testing.expectEqual(@as(usize, 0), set.count());
+
+        try set.insert(.{ .start = 1, .end = 2 });
+        try std.testing.expectEqual(@as(usize, 1), set.count());
+        try set.removeUntil(1);
         try std.testing.expectEqual(@as(usize, 1), set.count());
     }
 

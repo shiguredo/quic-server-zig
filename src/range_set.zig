@@ -90,6 +90,7 @@ pub const RangeSet = struct {
         node.key = new_range;
         e.set(node);
     }
+
     pub const Iterator = struct {
         cur: ?*Node,
 

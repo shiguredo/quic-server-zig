@@ -91,6 +91,44 @@ pub const RangeSet = struct {
         e.set(node);
     }
 
+    fn findMin(root: ?*Node) ?*Node {
+        var node = root;
+        while (node) |cur| {
+            node = cur.children[0] orelse break;
+        }
+        return node;
+    }
+
+    pub const Iterator = struct {
+        cur: ?*Node,
+
+        pub fn next(self: *Iterator) ?*Range {
+            const cur = self.cur orelse return null;
+
+            // Look for the node containing the next smallest range.
+            // If the current node has the right subtree, the target node is at the leftmost node of the right subtree.
+            // If it doesn't, the target is the parent of the current node
+            // only if the current node belongs to the left subtree of the parent.
+            const next_min = if (cur.children[1]) |right|
+                findMin(right)
+            else if (cur.parent != null and cur.parent.?.children[0] == cur)
+                cur.parent
+            else
+                null;
+
+            self.cur = next_min;
+
+            return &cur.*.key;
+        }
+    };
+
+    pub fn iterator(self: *const Self) Iterator {
+        // Look for the minimum range in the tree.
+        var min_range = findMin(self.inner.root);
+
+        return .{ .cur = min_range };
+    }
+
     fn prev(self: Self, point: u64) ?*Range {
         const rec = struct {
             fn f(cur_node: ?*Node, x: u64, candidate: ?*Range) ?*Range {
@@ -163,6 +201,34 @@ test {
 }
 
 const RangeSetTest = struct {
+    fn eq(a: Range, b: Range) bool {
+        return compareRange(a, b) == .eq;
+    }
+
+    test "iterator" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+
+        try set.insert(.{ .start = 1, .end = 3 });
+        try set.insert(.{ .start = 20, .end = 29 });
+        try set.insert(.{ .start = 7, .end = 9 });
+
+        var it = set.iterator();
+        try std.testing.expect(eq(
+            it.next().?.*,
+            .{ .start = 1, .end = 3 },
+        ));
+        try std.testing.expect(eq(
+            it.next().?.*,
+            .{ .start = 7, .end = 9 },
+        ));
+        try std.testing.expect(eq(
+            it.next().?.*,
+            .{ .start = 20, .end = 29 },
+        ));
+        try std.testing.expect(it.next() == null);
+    }
+
     test "add" {
         var set = RangeSet.init(std.testing.allocator);
         defer set.deinit();

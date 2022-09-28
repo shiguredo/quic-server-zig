@@ -17,6 +17,7 @@ pub const RangeSet = struct {
 
     const Self = @This();
     const InnerTree = Treap(Range, compareRange);
+    const Node = InnerTree.Node;
 
     pub fn init(allocator: Allocator) Self {
         return .{
@@ -27,7 +28,7 @@ pub const RangeSet = struct {
 
     pub fn deinit(self: Self) void {
         const rec = struct {
-            fn f(node: ?*InnerTree.Node, alloc: Allocator) void {
+            fn f(node: ?*Node, alloc: Allocator) void {
                 const n = node orelse return;
                 const left = n.*.children[0];
                 f(left, alloc);
@@ -68,14 +69,14 @@ pub const RangeSet = struct {
 
         const new_range = Range{ .start = start, .end = end };
         var e = self.inner.getEntryFor(new_range);
-        var node = try self.allocator.create(InnerTree.Node);
+        var node = try self.allocator.create(Node);
         node.key = new_range;
         e.set(node);
     }
 
     fn prev(self: Self, point: u64) ?*Range {
         const rec = struct {
-            fn f(cur_node: ?*InnerTree.Node, x: u64, candidate: ?*Range) ?*Range {
+            fn f(cur_node: ?*Node, x: u64, candidate: ?*Range) ?*Range {
                 const n = cur_node orelse return candidate;
 
                 const left = n.*.children[0];
@@ -94,7 +95,7 @@ pub const RangeSet = struct {
 
     fn next(self: Self, point: u64) ?*Range {
         const rec = struct {
-            fn f(cur_node: ?*InnerTree.Node, x: u64, candidate: ?*Range) ?*Range {
+            fn f(cur_node: ?*Node, x: u64, candidate: ?*Range) ?*Range {
                 const n = cur_node orelse return candidate;
 
                 const left = n.*.children[0];
@@ -145,6 +146,48 @@ test {
 }
 
 const RangeSetTest = struct {
+    fn count(set: RangeSet) usize {
+        const rec = struct {
+            fn f(node: ?*RangeSet.Node) usize {
+                const n = node orelse return 0;
+                const left = n.*.children[0];
+                const right = n.*.children[1];
+                return 1 + f(left) + f(right);
+            }
+        }.f;
+
+        return rec(set.inner.root);
+    }
+
+    test "insert" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+
+        try set.insert(.{ .start = 1, .end = 3 });
+        try std.testing.expectEqual(@as(usize, 1), count(set));
+
+        // This will be merged with the first range, expanding the range to [1, 4].
+        try set.insert(.{ .start = 2, .end = 4 });
+        try std.testing.expectEqual(@as(usize, 1), count(set));
+
+        // This will be merged with the first range, with no expansion.
+        try set.insert(.{ .start = 1, .end = 2 });
+        try std.testing.expectEqual(@as(usize, 1), count(set));
+
+        // This will be merged with the first range, expanding the range to [0, 5].
+        try set.insert(.{ .start = 0, .end = 5 });
+        try std.testing.expectEqual(@as(usize, 1), count(set));
+
+        // This will NOT be merged with the existing range.
+        try set.insert(.{ .start = 8, .end = 10 });
+        try std.testing.expectEqual(@as(usize, 2), count(set));
+
+        // This overlaps with the existing two ranges.
+        // As a result we will get a single range of [0, 10].
+        try set.insert(.{ .start = 4, .end = 9 });
+        try std.testing.expectEqual(@as(usize, 1), count(set));
+    }
+
     test "RangeSet prev" {
         var set = RangeSet.init(std.testing.allocator);
         defer set.deinit();

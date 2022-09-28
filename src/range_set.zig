@@ -90,23 +90,6 @@ pub const RangeSet = struct {
         node.key = new_range;
         e.set(node);
     }
-
-    fn findMin(root: ?*Node) ?*Node {
-        var node = root;
-        while (node) |cur| {
-            node = cur.children[0] orelse break;
-        }
-        return node;
-    }
-
-    fn findMax(root: ?*Node) ?*Node {
-        var node = root;
-        while (node) |cur| {
-            node = cur.children[1] orelse break;
-        }
-        return node;
-    }
-
     pub const Iterator = struct {
         cur: ?*Node,
 
@@ -222,6 +205,22 @@ pub const RangeSet = struct {
         const orig_node_ptr = entry.node orelse return;
         defer self.allocator.destroy(orig_node_ptr);
         entry.set(null);
+    }
+
+    fn findMin(root: ?*Node) ?*Node {
+        var node = root;
+        while (node) |cur| {
+            node = cur.children[0] orelse break;
+        }
+        return node;
+    }
+
+    fn findMax(root: ?*Node) ?*Node {
+        var node = root;
+        while (node) |cur| {
+            node = cur.children[1] orelse break;
+        }
+        return node;
     }
 };
 

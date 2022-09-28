@@ -41,6 +41,19 @@ pub const RangeSet = struct {
         rec(self.inner.root, self.allocator);
     }
 
+    pub fn count(self: Self) usize {
+        const rec = struct {
+            fn f(node: ?*RangeSet.Node) usize {
+                const n = node orelse return 0;
+                const left = n.*.children[0];
+                const right = n.*.children[1];
+                return 1 + f(left) + f(right);
+            }
+        }.f;
+
+        return rec(self.inner.root);
+    }
+
     pub fn add(self: *Self, point: u64) Allocator.Error!void {
         try self.insert(.{ .start = point, .end = point });
     }
@@ -150,32 +163,19 @@ test {
 }
 
 const RangeSetTest = struct {
-    fn count(set: RangeSet) usize {
-        const rec = struct {
-            fn f(node: ?*RangeSet.Node) usize {
-                const n = node orelse return 0;
-                const left = n.*.children[0];
-                const right = n.*.children[1];
-                return 1 + f(left) + f(right);
-            }
-        }.f;
-
-        return rec(set.inner.root);
-    }
-
     test "add" {
         var set = RangeSet.init(std.testing.allocator);
         defer set.deinit();
 
-        try std.testing.expectEqual(@as(usize, 0), count(set));
+        try std.testing.expectEqual(@as(usize, 0), set.count());
         try set.add(4);
-        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try std.testing.expectEqual(@as(usize, 1), set.count());
         try set.add(6);
-        try std.testing.expectEqual(@as(usize, 2), count(set));
+        try std.testing.expectEqual(@as(usize, 2), set.count());
         try set.add(8);
-        try std.testing.expectEqual(@as(usize, 3), count(set));
+        try std.testing.expectEqual(@as(usize, 3), set.count());
         try set.add(8);
-        try std.testing.expectEqual(@as(usize, 3), count(set));
+        try std.testing.expectEqual(@as(usize, 3), set.count());
     }
 
     test "insert" {
@@ -183,28 +183,28 @@ const RangeSetTest = struct {
         defer set.deinit();
 
         try set.insert(.{ .start = 1, .end = 3 });
-        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try std.testing.expectEqual(@as(usize, 1), set.count());
 
         // This will be merged with the first range, expanding the range to [1, 4].
         try set.insert(.{ .start = 2, .end = 4 });
-        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try std.testing.expectEqual(@as(usize, 1), set.count());
 
         // This will be merged with the first range, with no expansion.
         try set.insert(.{ .start = 1, .end = 2 });
-        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try std.testing.expectEqual(@as(usize, 1), set.count());
 
         // This will be merged with the first range, expanding the range to [0, 5].
         try set.insert(.{ .start = 0, .end = 5 });
-        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try std.testing.expectEqual(@as(usize, 1), set.count());
 
         // This will NOT be merged with the existing range.
         try set.insert(.{ .start = 8, .end = 10 });
-        try std.testing.expectEqual(@as(usize, 2), count(set));
+        try std.testing.expectEqual(@as(usize, 2), set.count());
 
         // This overlaps with the existing two ranges.
         // As a result we will get a single range of [0, 10].
         try set.insert(.{ .start = 4, .end = 9 });
-        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try std.testing.expectEqual(@as(usize, 1), set.count());
     }
 
     test "RangeSet prev" {

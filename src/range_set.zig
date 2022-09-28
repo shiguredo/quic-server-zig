@@ -140,70 +140,76 @@ fn rangeOverlap(smaller: Range, greater: Range) bool {
     return smaller.start <= greater.start and greater.start <= smaller.end;
 }
 
-test "RangeSet prev" {
-    var set = RangeSet.init(std.testing.allocator);
-    defer set.deinit();
-    try set.insert(.{ .start = 1, .end = 3 });
-
-    try std.testing.expect(set.prev(0) == null);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(1).?.start);
-    try std.testing.expectEqual(@as(u64, 3), set.prev(1).?.end);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(2).?.start);
-    try std.testing.expectEqual(@as(u64, 3), set.prev(2).?.end);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(3).?.start);
-    try std.testing.expectEqual(@as(u64, 3), set.prev(3).?.end);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(4).?.start);
-    try std.testing.expectEqual(@as(u64, 3), set.prev(4).?.end);
-
-    // This will be merged with the range that was inserted above.
-    try set.insert(.{ .start = 2, .end = 5 });
-
-    try std.testing.expect(set.prev(0) == null);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(1).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.prev(1).?.end);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(2).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.prev(2).?.end);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(5).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.prev(5).?.end);
-
-    try std.testing.expectEqual(@as(u64, 1), set.prev(6).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.prev(6).?.end);
+test {
+    _ = RangeSetTest;
 }
 
-test "RangeSet next" {
-    var set = RangeSet.init(std.testing.allocator);
-    defer set.deinit();
-    try set.insert(.{ .start = 3, .end = 5 });
+const RangeSetTest = struct {
+    test "RangeSet prev" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+        try set.insert(.{ .start = 1, .end = 3 });
 
-    try std.testing.expectEqual(@as(u64, 3), set.next(1).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.next(1).?.end);
+        try std.testing.expect(set.prev(0) == null);
 
-    try std.testing.expectEqual(@as(u64, 3), set.next(3).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.next(3).?.end);
+        try std.testing.expectEqual(@as(u64, 1), set.prev(1).?.start);
+        try std.testing.expectEqual(@as(u64, 3), set.prev(1).?.end);
 
-    try std.testing.expectEqual(@as(u64, 3), set.next(5).?.start);
-    try std.testing.expectEqual(@as(u64, 5), set.next(5).?.end);
+        try std.testing.expectEqual(@as(u64, 1), set.prev(2).?.start);
+        try std.testing.expectEqual(@as(u64, 3), set.prev(2).?.end);
 
-    try std.testing.expect(set.next(6) == null);
+        try std.testing.expectEqual(@as(u64, 1), set.prev(3).?.start);
+        try std.testing.expectEqual(@as(u64, 3), set.prev(3).?.end);
 
-    // This will be merged with the range that was inserted above.
-    try set.insert(.{ .start = 4, .end = 7 });
+        try std.testing.expectEqual(@as(u64, 1), set.prev(4).?.start);
+        try std.testing.expectEqual(@as(u64, 3), set.prev(4).?.end);
 
-    try std.testing.expectEqual(@as(u64, 3), set.next(1).?.start);
-    try std.testing.expectEqual(@as(u64, 7), set.next(1).?.end);
+        // This will be merged with the range that was inserted above.
+        try set.insert(.{ .start = 2, .end = 5 });
 
-    try std.testing.expectEqual(@as(u64, 3), set.next(3).?.start);
-    try std.testing.expectEqual(@as(u64, 7), set.next(3).?.end);
+        try std.testing.expect(set.prev(0) == null);
 
-    try std.testing.expectEqual(@as(u64, 3), set.next(7).?.start);
-    try std.testing.expectEqual(@as(u64, 7), set.next(7).?.end);
+        try std.testing.expectEqual(@as(u64, 1), set.prev(1).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.prev(1).?.end);
 
-    try std.testing.expect(set.next(8) == null);
-}
+        try std.testing.expectEqual(@as(u64, 1), set.prev(2).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.prev(2).?.end);
+
+        try std.testing.expectEqual(@as(u64, 1), set.prev(5).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.prev(5).?.end);
+
+        try std.testing.expectEqual(@as(u64, 1), set.prev(6).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.prev(6).?.end);
+    }
+
+    test "RangeSet next" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+        try set.insert(.{ .start = 3, .end = 5 });
+
+        try std.testing.expectEqual(@as(u64, 3), set.next(1).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.next(1).?.end);
+
+        try std.testing.expectEqual(@as(u64, 3), set.next(3).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.next(3).?.end);
+
+        try std.testing.expectEqual(@as(u64, 3), set.next(5).?.start);
+        try std.testing.expectEqual(@as(u64, 5), set.next(5).?.end);
+
+        try std.testing.expect(set.next(6) == null);
+
+        // This will be merged with the range that was inserted above.
+        try set.insert(.{ .start = 4, .end = 7 });
+
+        try std.testing.expectEqual(@as(u64, 3), set.next(1).?.start);
+        try std.testing.expectEqual(@as(u64, 7), set.next(1).?.end);
+
+        try std.testing.expectEqual(@as(u64, 3), set.next(3).?.start);
+        try std.testing.expectEqual(@as(u64, 7), set.next(3).?.end);
+
+        try std.testing.expectEqual(@as(u64, 3), set.next(7).?.start);
+        try std.testing.expectEqual(@as(u64, 7), set.next(7).?.end);
+
+        try std.testing.expect(set.next(8) == null);
+    }
+};

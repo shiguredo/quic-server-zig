@@ -41,6 +41,10 @@ pub const RangeSet = struct {
         rec(self.inner.root, self.allocator);
     }
 
+    pub fn add(self: *Self, point: u64) Allocator.Error!void {
+        try self.insert(.{ .start = point, .end = point });
+    }
+
     pub fn insert(self: *Self, range: Range) Allocator.Error!void {
         var start = range.start;
         var end = range.end;
@@ -157,6 +161,21 @@ const RangeSetTest = struct {
         }.f;
 
         return rec(set.inner.root);
+    }
+
+    test "add" {
+        var set = RangeSet.init(std.testing.allocator);
+        defer set.deinit();
+
+        try std.testing.expectEqual(@as(usize, 0), count(set));
+        try set.add(4);
+        try std.testing.expectEqual(@as(usize, 1), count(set));
+        try set.add(6);
+        try std.testing.expectEqual(@as(usize, 2), count(set));
+        try set.add(8);
+        try std.testing.expectEqual(@as(usize, 3), count(set));
+        try set.add(8);
+        try std.testing.expectEqual(@as(usize, 3), count(set));
     }
 
     test "insert" {

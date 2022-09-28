@@ -30,9 +30,9 @@ pub const RangeSet = struct {
         const rec = struct {
             fn f(node: ?*Node, alloc: Allocator) void {
                 const n = node orelse return;
-                const left = n.*.children[0];
+                const left = n.children[0];
                 f(left, alloc);
-                const right = n.*.children[1];
+                const right = n.children[1];
                 f(right, alloc);
                 alloc.destroy(n);
             }
@@ -45,8 +45,8 @@ pub const RangeSet = struct {
         const rec = struct {
             fn f(node: ?*RangeSet.Node) usize {
                 const n = node orelse return 0;
-                const left = n.*.children[0];
-                const right = n.*.children[1];
+                const left = n.children[0];
+                const right = n.children[1];
                 return 1 + f(left) + f(right);
             }
         }.f;
@@ -67,8 +67,8 @@ pub const RangeSet = struct {
             if (!rangeOverlap(r.*, range))
                 break;
 
-            start = math.min(start, r.*.start);
-            end = math.max(end, r.*.end);
+            start = math.min(start, r.start);
+            end = math.max(end, r.end);
             self.removeRange(r.*);
             cur_range = self.prev(start);
         }
@@ -78,8 +78,8 @@ pub const RangeSet = struct {
             if (!rangeOverlap(range, r.*))
                 break;
 
-            start = math.min(start, r.*.start);
-            end = math.max(end, r.*.end);
+            start = math.min(start, r.start);
+            end = math.max(end, r.end);
             self.removeRange(r.*);
             cur_range = self.next(start);
         }
@@ -118,7 +118,7 @@ pub const RangeSet = struct {
 
             self.cur = next_min;
 
-            return &cur.*.key;
+            return &cur.key;
         }
     };
 
@@ -134,13 +134,13 @@ pub const RangeSet = struct {
             fn f(cur_node: ?*Node, x: u64, candidate: ?*Range) ?*Range {
                 const n = cur_node orelse return candidate;
 
-                const left = n.*.children[0];
-                const right = n.*.children[1];
+                const left = n.children[0];
+                const right = n.children[1];
 
-                return switch (compareRangeWithPoint(n.*.key, x)) {
-                    .included => &n.*.key,
+                return switch (compareRangeWithPoint(n.key, x)) {
+                    .included => &n.key,
                     .smaller => f(left, x, candidate),
-                    .greater => f(right, x, &n.*.key),
+                    .greater => f(right, x, &n.key),
                 };
             }
         }.f;
@@ -153,12 +153,12 @@ pub const RangeSet = struct {
             fn f(cur_node: ?*Node, x: u64, candidate: ?*Range) ?*Range {
                 const n = cur_node orelse return candidate;
 
-                const left = n.*.children[0];
-                const right = n.*.children[1];
+                const left = n.children[0];
+                const right = n.children[1];
 
-                return switch (compareRangeWithPoint(n.*.key, x)) {
-                    .included => &n.*.key,
-                    .smaller => f(right, x, &n.*.key),
+                return switch (compareRangeWithPoint(n.key, x)) {
+                    .included => &n.key,
+                    .smaller => f(right, x, &n.key),
                     .greater => f(left, x, candidate),
                 };
             }

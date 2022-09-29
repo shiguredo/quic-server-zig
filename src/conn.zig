@@ -170,7 +170,7 @@ pub const Conn = struct {
         // Packets with the type of Retry or Version Negotiation are already handled and returned,
         // so we can definitely find the packet number space that corresponds to the given packet type.
         var pkt_num_space = self.pkt_num_spaces.getByPacketType(hdr.packet_type) catch unreachable;
-        const decryptor = if (pkt_num_space.decryptor) |d| d else {
+        const decryptor = pkt_num_space.decryptor orelse {
             // TODO(magurotuna): in case of 0-RTT packets, we need to buffer the received data
             // until the decryptor is ready so that we can decrypt them later.
             // But we skip implementing it for now.

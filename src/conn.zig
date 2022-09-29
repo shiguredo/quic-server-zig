@@ -8,6 +8,7 @@ const packet_number_space = @import("./packet_number_space.zig");
 const bytes = @import("./bytes.zig");
 const packet = @import("./packet.zig");
 const version = @import("./version.zig");
+const TransportParameters = @import("./transport_parameters.zig");
 const Frame = @import("./frame/frame.zig").Frame;
 const tls = @import("./tls.zig");
 const encode_crypto_header = @import("./frame/crypto.zig").encode_crypto_header;
@@ -16,6 +17,8 @@ pub const Conn = struct {
     scid: ArrayList(u8),
     dcid: ArrayList(u8),
     pkt_num_spaces: packet_number_space.PacketNumberSpaces,
+    peer_transport_params: TransportParameters,
+    local_transport_params: TransportParameters,
     handshake: tls.Handshake,
 
     /// The QUIC version used in the connection.
@@ -68,13 +71,16 @@ pub const Conn = struct {
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
 
-        var handshake = try tls.Handshake.init(allocator, .{});
+        var handshake = try tls.Handshake.init(allocator, TransportParameters.default());
         errdefer handshake.deinit();
 
         return Self{
             .scid = scid_owned,
             .dcid = dcid_owned,
             .pkt_num_spaces = pkt_num_spaces,
+            .peer_transport_params = TransportParameters.default(),
+            // TODO(magurotuna) expose the way of configuring transport params
+            .local_transport_params = TransportParameters.default(),
             .handshake = handshake,
             .allocator = allocator,
         };
@@ -410,12 +416,9 @@ pub const Conn = struct {
         if (pkt_num_space.recv_packet_need_ack.count() > 0 and pkt_num_space.ack_elicited) {
             const ack_delay_micro = pkt_num_space.largest_recv_packet_ack_timer.read() / 1000;
 
-            // TODO(magurotuna): This value should be configured via transport parameters.
-            // For the moment, we use the default value as defined in the RFC.
-            // https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2-4.26.1
-            const ack_delay_exponent = 3;
-
-            const ack_delay = ack_delay_micro / math.pow(u64, 2, ack_delay_exponent);
+            // Encode the ACK delay value as specified in the RFC:
+            // https://www.rfc-editor.org/rfc/rfc9000.html#section-19.3-8.4.1
+            const ack_delay = ack_delay_micro / math.pow(u64, 2, self.local_transport_params.ack_delay_exponent);
 
             const frame = Frame{
                 .ack = .{

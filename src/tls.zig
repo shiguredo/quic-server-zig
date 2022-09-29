@@ -19,6 +19,7 @@ const Bytes = @import("./bytes.zig").Bytes;
 const version = @import("./version.zig");
 const assert = std.debug.assert;
 const X25519 = std.crypto.dh.X25519;
+const TransportParameters = @import("./transport_parameters.zig");
 
 pub const Cryptor = cryptor.Cryptor;
 
@@ -313,15 +314,6 @@ pub const Handshake = struct {
         try hs.encode(&out);
         try self.concat_handshake_messages.appendSlice(out.split().former.buf);
     }
-};
-
-/// Transport parameters
-///
-/// https://www.rfc-editor.org/rfc/rfc9000.html#name-transport-parameters
-/// https://www.rfc-editor.org/rfc/rfc9000.html#name-transport-parameter-encodin
-/// https://www.rfc-editor.org/rfc/rfc9001.html#name-quic-transport-parameters-e
-pub const TransportParameters = struct {
-    // TODO
 };
 
 pub const KeyChange = union(enum) {

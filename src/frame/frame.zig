@@ -53,7 +53,7 @@ pub const Frame = union(FrameType) {
         return switch (self) {
             .padding => |p| p.encode(out),
             .ack => |a| a.encode(out),
-            .crypto => |c| c.encode(out),
+            .crypto => unreachable,
             // TODO(magurotuna) implement
             .connection_close => unreachable,
             // TODO(magurotuna) add other frame types

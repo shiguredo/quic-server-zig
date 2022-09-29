@@ -6,6 +6,7 @@ const crypto = @import("./crypto.zig");
 const tls = @import("./tls.zig");
 const packet = @import("./packet.zig");
 const stream = @import("./stream.zig");
+const range_set = @import("./range_set.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
 ///
@@ -85,19 +86,6 @@ pub const PacketNumberSpaces = struct {
     }
 };
 
-/// Manage the acknowledged ranges.
-/// https://www.rfc-editor.org/rfc/rfc9000.html#ack-ranges
-pub const RangeSet = struct {
-    // TODO(magurotuna)
-    const Self = @This();
-
-    pub fn push(self: *Self, packet_number: u64) !void {
-        _ = self;
-        _ = packet_number;
-        return error.Unimplemented;
-    }
-};
-
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
 ///
 /// > Packet numbers are divided into three spaces in QUIC:
@@ -124,7 +112,7 @@ pub const PacketNumberSpace = struct {
     /// > the same packet number space MUST increase the packet number by at least one.
     next_packet_number: u64 = 0,
 
-    recv_packet_need_ack: RangeSet = .{},
+    recv_packet_need_ack: range_set.RangeSet,
 
     /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
     ///
@@ -172,12 +160,14 @@ pub const PacketNumberSpace = struct {
 
         return Self{
             .space_type = space_type,
+            .recv_packet_need_ack = range_set.RangeSet.init(allocator),
             .recv_packet_number = recv_packet_number,
             .crypto_stream = crypto_stream,
         };
     }
 
     pub fn deinit(self: *Self) void {
+        self.recv_packet_need_ack.deinit();
         self.recv_packet_number.deinit();
         if (self.encryptor) |*x| x.deinit();
         if (self.decryptor) |*x| x.deinit();
@@ -189,7 +179,7 @@ pub const PacketNumberSpace = struct {
     /// Update the state regarding the packet number.
     pub fn updatePacketNumber(self: *Self, packet_number: u64) !void {
         try self.recv_packet_number.put(packet_number, {});
-        try self.recv_packet_need_ack.push(packet_number);
+        try self.recv_packet_need_ack.add(packet_number);
         self.largest_recv_packet_number = math.max(self.largest_recv_packet_number, packet_number);
     }
 

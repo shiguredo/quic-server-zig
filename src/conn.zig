@@ -44,6 +44,8 @@ pub const Conn = struct {
         InvalidPacket,
         /// Failure on a cryptographic operation.
         CryptoFail,
+        /// The connection is in an invalid state.
+        InvalidState,
     };
 
     pub fn accept(
@@ -465,10 +467,22 @@ pub const Conn = struct {
         var length_field_buf = (try out.splitAt(length_field_offset)).latter;
         try length_field_buf.putVarInt(@intCast(u64, payload_end_offset - payload_offset));
 
+        var written_buf = out.split().former.buf;
+        // Encrypt the header and payload.
+        const encryptor = pkt_num_space.encryptor orelse return Error.InvalidState;
+        const aead_tag = try packet.encryptPacket(
+            written_buf[0..payload_offset],
+            written_buf[payload_offset..],
+            pkt_num,
+            pkt_num_len,
+            encryptor,
+        );
+        try out.putBytes(&aead_tag);
+
         pkt_num_space.next_packet_number += 1;
 
         return SendSignleResult{
-            .n_written = out.split().former.buf.len,
+            .n_written = written_buf.len + aead_tag.len,
             .packet_type = pkt_type,
         };
     }

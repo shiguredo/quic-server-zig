@@ -5,6 +5,8 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
+/// A range between two values, inclusive.
+/// The caller must guarantee `start` <= `end`.
 pub const Range = struct {
     start: u64,
     end: u64,

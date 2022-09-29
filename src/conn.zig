@@ -467,9 +467,14 @@ pub const Conn = struct {
         }
 
         // Update the payload length with the actual value.
-        const payload_end_offset = out.pos;
-        var length_field_buf = (try out.splitAt(length_field_offset)).latter;
-        try length_field_buf.putVarInt(@intCast(u64, payload_end_offset - payload_offset));
+        if (pkt_type != .one_rtt) {
+            const payload_end_offset = out.pos;
+            var length_field_buf = (try out.splitAt(length_field_offset)).latter;
+            try length_field_buf.putVarIntWithLength(
+                @intCast(u64, payload_end_offset - payload_offset + aead_len + pkt_num_len),
+                payload_length_len,
+            );
+        }
 
         var written_buf = out.split().former.buf;
         // Encrypt the header and payload.

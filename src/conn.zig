@@ -289,8 +289,13 @@ pub const Conn = struct {
         switch (frame) {
             .padding => {},
             .ack => |ack| {
-                // TODO
-                _ = ack;
+                const ack_delay = math.mul(
+                    u64,
+                    ack.ack_delay,
+                    math.pow(u64, 2, self.peer_transport_params.ack_delay_exponent),
+                ) catch return error.InvalidFrame;
+
+                _ = ack_delay;
             },
             .crypto => |crypto| {
                 try pkt_num_space.crypto_stream.recv.write(crypto.crypto_data);

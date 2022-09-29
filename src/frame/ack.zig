@@ -1,6 +1,6 @@
 const std = @import("std");
-const ArrayList = std.ArrayList;
 const bytes = @import("../bytes.zig");
+const range_set = @import("../range_set.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-ack-frames
 ///
@@ -13,15 +13,17 @@ const bytes = @import("../bytes.zig");
 ///   ACK Range (..) ...,
 ///   [ECN Counts (..)],
 /// }
+///
+/// ACK Range {
+///   Gap (i),
+///   ACK Range Length (i),
+/// }
 pub const Ack = struct {
-    largest_acknowledged: u64,
     ack_delay: u64,
-    first_ack_range: u64,
-    ack_range: AckRanges,
+    ranges: range_set.RangeSet,
     ecn_counts: ?EcnCounts = null,
 
     const Self = @This();
-    pub const AckRanges = ArrayList(AckRange);
 
     /// https://www.rfc-editor.org/rfc/rfc9000.html#name-ack-frames
     /// > Receivers send ACK frames (types 0x02 and 0x03) to inform senders of packets they have
@@ -29,39 +31,39 @@ pub const Ack = struct {
     const frame_type_no_ecn = 0x02;
     const frame_type_with_ecn = 0x03;
 
-    pub fn encodedLength(self: Self) usize {
-        const type_len = bytes.varIntLength(self.get_frame_type());
-        const largest_acknowledged_len = bytes.varIntLength(self.largest_acknowledged);
-        const ack_delay_len = bytes.varIntLength(self.ack_delay);
-        const ack_range_count_len = bytes.varIntLength(self.ack_range.items.len);
-        const first_ack_range_len = bytes.varIntLength(self.first_ack_range);
-        const ack_range_len = blk: {
-            var len: usize = 0;
-            for (self.ack_range.items) |a| {
-                len += a.encodedLength();
-            }
-            break :blk len;
-        };
-        const ecn_counts_len = if (self.ecn_counts) |ecn| ecn.encodedLength() else 0;
-
-        return type_len +
-            largest_acknowledged_len +
-            ack_delay_len +
-            ack_range_count_len +
-            first_ack_range_len +
-            ack_range_len +
-            ecn_counts_len;
-    }
-
     pub fn encode(self: Self, out: *bytes.Bytes) !void {
+        if (self.ranges.count() == 0)
+            return error.NoPacketToAck;
+
+        // Type
         try out.putVarInt(self.get_frame_type());
-        try out.putVarInt(self.largest_acknowledged);
+
+        var it = self.ranges.iteratorBack();
+        const first_range = it.prev().?;
+
+        // Largest Acknowledged
+        try out.putVarInt(first_range.end);
+
+        // ACK Delay
         try out.putVarInt(self.ack_delay);
-        try out.putVarInt(@intCast(u64, self.ack_range.items.len));
-        try out.putVarInt(self.first_ack_range);
-        for (self.ack_range.items) |a| {
-            try a.encode(out);
+
+        // ACK Range Count
+        try out.putVarInt(self.ranges.count() - 1);
+
+        // First ACK Range
+        try out.putVarInt(first_range.end - first_range.start);
+
+        // ACK Range
+        var prev_smallest = first_range.start;
+        while (it.prev()) |range| {
+            const gap = prev_smallest - range.end - 2;
+            const ack_range_length = range.end - range.start;
+            try out.putVarInt(gap);
+            try out.putVarInt(ack_range_length);
+            prev_smallest = range.start;
         }
+
+        // ECN Counts
         if (self.ecn_counts) |ecn| {
             try ecn.encode(out);
         }
@@ -75,19 +77,34 @@ pub const Ack = struct {
         const ack_range_count = try in.consumeVarInt();
         const first_ack_range = try in.consumeVarInt();
 
-        const ack_range = blk: {
-            var ranges = try AckRanges.initCapacity(allocator, @intCast(usize, ack_range_count));
-            errdefer ranges.deinit();
+        var ranges = range_set.RangeSet.init(allocator);
+        errdefer ranges.deinit();
 
-            var i: usize = 0;
-            while (i < ack_range_count) : (i += 1) {
-                const r = try AckRange.decode(allocator, in);
-                ranges.appendAssumeCapacity(r);
-            }
+        // How to interpret an ACK frame is explained in the RFC:
+        // https://www.rfc-editor.org/rfc/rfc9000.html#name-ack-frames
 
-            break :blk ranges;
-        };
-        errdefer ack_range.deinit();
+        if (largest_acknowledged < first_ack_range)
+            return error.InvalidFrame;
+
+        var smallest = largest_acknowledged - first_ack_range;
+
+        // Insert a range including the largest packet number.
+        try ranges.insert(.{ .start = smallest, .end = largest_acknowledged });
+
+        // Insert the remaining ranges, if any.
+        var i: usize = 0;
+        while (i < ack_range_count) : (i += 1) {
+            const gap = try in.consumeVarInt();
+            const ack_range_length = try in.consumeVarInt();
+
+            if (smallest < gap + 2)
+                return error.InvalidFrame;
+
+            const largest = smallest - gap - 2;
+            smallest = largest - ack_range_length;
+
+            try ranges.insert(.{ .start = smallest, .end = largest });
+        }
 
         const ecn_counts = if (frame_type == frame_type_with_ecn)
             try EcnCounts.decode(allocator, in)
@@ -95,18 +112,14 @@ pub const Ack = struct {
             null;
 
         return Self{
-            .largest_acknowledged = largest_acknowledged,
             .ack_delay = ack_delay,
-            .first_ack_range = first_ack_range,
-            .ack_range = ack_range,
+            .ranges = ranges,
             .ecn_counts = ecn_counts,
         };
     }
 
     pub fn deinit(self: Self) void {
-        // Items in ack_range don't need to be deinitialized since `AckRange` type
-        // consists of primitive values only
-        self.ack_range.deinit();
+        self.ranges.deinit();
     }
 
     fn get_frame_type(self: Self) u64 {
@@ -127,16 +140,16 @@ pub const Ack = struct {
 
 test "encode Ack (without ECN Counts)" {
     const ack = Ack{
-        .largest_acknowledged = 1,
         .ack_delay = 2,
-        .first_ack_range = 3,
-        .ack_range = blk: {
-            var xs = ArrayList(AckRange).init(std.testing.allocator);
+        .ranges = blk: {
+            var ranges = range_set.RangeSet.init(std.testing.allocator);
+            errdefer ranges.deinit();
 
-            try xs.append(.{ .gap = 4, .ack_range_length = 5 });
-            try xs.append(.{ .gap = 6, .ack_range_length = 7 });
+            try ranges.insert(.{ .end = 15, .start = 12 });
+            try ranges.insert(.{ .end = 10, .start = 8 });
+            try ranges.insert(.{ .end = 5, .start = 2 });
 
-            break :blk xs;
+            break :blk ranges;
         },
         .ecn_counts = null,
     };
@@ -144,36 +157,34 @@ test "encode Ack (without ECN Counts)" {
     var buf: [1024]u8 = undefined;
     var out = bytes.Bytes{ .buf = &buf };
 
-    try std.testing.expectEqual(@as(usize, 9), ack.encodedLength());
-
     try ack.encode(&out);
     // zig fmt: off
     try std.testing.expectEqualSlices(u8, &[_]u8{
         0x02, // frame_type
-        0x01, // largest_acknowledged
+        0x0f, // largest_acknowledged
         0x02, // ack_delay
         0x02, // ack_range_count
         0x03, // first_ack_range
 
         // ack_range (*2)
-        0x04, 0x05,
-        0x06, 0x07,
+        0x00, 0x02,
+        0x01, 0x03,
     }, out.split().former.buf);
     // zig fmt: on
 }
 
 test "encode Ack (with ECN Counts)" {
     const ack = Ack{
-        .largest_acknowledged = 1,
         .ack_delay = 2,
-        .first_ack_range = 3,
-        .ack_range = blk: {
-            var xs = ArrayList(AckRange).init(std.testing.allocator);
+        .ranges = blk: {
+            var ranges = range_set.RangeSet.init(std.testing.allocator);
+            errdefer ranges.deinit();
 
-            try xs.append(.{ .gap = 4, .ack_range_length = 5 });
-            try xs.append(.{ .gap = 6, .ack_range_length = 7 });
+            try ranges.insert(.{ .end = 15, .start = 12 });
+            try ranges.insert(.{ .end = 10, .start = 8 });
+            try ranges.insert(.{ .end = 5, .start = 2 });
 
-            break :blk xs;
+            break :blk ranges;
         },
         .ecn_counts = EcnCounts{
             .ect0 = 8,
@@ -185,20 +196,18 @@ test "encode Ack (with ECN Counts)" {
     var buf: [1024]u8 = undefined;
     var out = bytes.Bytes{ .buf = &buf };
 
-    try std.testing.expectEqual(@as(usize, 12), ack.encodedLength());
-
     try ack.encode(&out);
     // zig fmt: off
     try std.testing.expectEqualSlices(u8, &[_]u8{
         0x03, // frame_type
-        0x01, // largest_acknowledged
+        0x0f, // largest_acknowledged
         0x02, // ack_delay
         0x02, // ack_range_count
         0x03, // first_ack_range
 
         // ack_range (*2)
-        0x04, 0x05,
-        0x06, 0x07,
+        0x00, 0x02,
+        0x01, 0x03,
 
         // ecn_counts
         0x08, 0x09, 0x0a,
@@ -207,100 +216,44 @@ test "encode Ack (with ECN Counts)" {
 }
 
 test "decode Ack (without ECN Counts)" {
-    var buf = [_]u8{ 0x02, 0x01, 0x02, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
+    var buf = [_]u8{ 0x02, 0x0f, 0x02, 0x02, 0x03, 0x00, 0x02, 0x01, 0x03 };
     var in = bytes.Bytes{ .buf = &buf };
 
     const got = try Ack.decode(std.testing.allocator, &in);
     defer got.deinit();
 
-    try std.testing.expectEqual(@as(u64, 1), got.largest_acknowledged);
     try std.testing.expectEqual(@as(u64, 2), got.ack_delay);
-    try std.testing.expectEqual(@as(u64, 3), got.first_ack_range);
-    try std.testing.expectEqual(@as(usize, 2), got.ack_range.items.len);
-    try std.testing.expectEqual(@as(u64, 4), got.ack_range.items[0].gap);
-    try std.testing.expectEqual(@as(u64, 5), got.ack_range.items[0].ack_range_length);
-    try std.testing.expectEqual(@as(u64, 6), got.ack_range.items[1].gap);
-    try std.testing.expectEqual(@as(u64, 7), got.ack_range.items[1].ack_range_length);
+    try std.testing.expectEqual(@as(usize, 3), got.ranges.count());
+
+    var it = got.ranges.iteratorBack();
+
+    try std.testing.expectEqual(it.prev().?.*, .{ .start = 12, .end = 15 });
+    try std.testing.expectEqual(it.prev().?.*, .{ .start = 8, .end = 10 });
+    try std.testing.expectEqual(it.prev().?.*, .{ .start = 2, .end = 5 });
+
     try std.testing.expect(got.ecn_counts == null);
 }
 
 test "decode Ack (with ECN Counts)" {
-    var buf = [_]u8{ 0x03, 0x01, 0x02, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a };
+    var buf = [_]u8{ 0x03, 0x0f, 0x02, 0x02, 0x03, 0x00, 0x02, 0x01, 0x03, 0x08, 0x09, 0x0a };
     var in = bytes.Bytes{ .buf = &buf };
 
     const got = try Ack.decode(std.testing.allocator, &in);
     defer got.deinit();
 
-    try std.testing.expectEqual(@as(u64, 1), got.largest_acknowledged);
     try std.testing.expectEqual(@as(u64, 2), got.ack_delay);
-    try std.testing.expectEqual(@as(u64, 3), got.first_ack_range);
-    try std.testing.expectEqual(@as(usize, 2), got.ack_range.items.len);
+    try std.testing.expectEqual(@as(usize, 3), got.ranges.count());
+
+    var it = got.ranges.iteratorBack();
+
+    try std.testing.expectEqual(it.prev().?.*, .{ .start = 12, .end = 15 });
+    try std.testing.expectEqual(it.prev().?.*, .{ .start = 8, .end = 10 });
+    try std.testing.expectEqual(it.prev().?.*, .{ .start = 2, .end = 5 });
+
     try std.testing.expect(got.ecn_counts != null);
     try std.testing.expectEqual(@as(u64, 8), got.ecn_counts.?.ect0);
     try std.testing.expectEqual(@as(u64, 9), got.ecn_counts.?.ect1);
     try std.testing.expectEqual(@as(u64, 10), got.ecn_counts.?.ect_ce);
-}
-
-/// https://www.rfc-editor.org/rfc/rfc9000.html#name-ack-ranges
-///
-/// ACK Range {
-///   Gap (i),
-///   ACK Range Length (i),
-/// }
-pub const AckRange = struct {
-    gap: u64,
-    ack_range_length: u64,
-
-    const Self = @This();
-
-    pub fn encodedLength(self: Self) usize {
-        return bytes.varIntLength(self.gap) + bytes.varIntLength(self.ack_range_length);
-    }
-
-    pub fn encode(self: Self, out: *bytes.Bytes) !void {
-        try out.putVarInt(self.gap);
-        try out.putVarInt(self.ack_range_length);
-    }
-
-    pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
-        _ = allocator;
-        const gap = try in.consumeVarInt();
-        const ack_range_length = try in.consumeVarInt();
-        return Self{
-            .gap = gap,
-            .ack_range_length = ack_range_length,
-        };
-    }
-
-    pub fn deinit(self: Self) void {
-        // no-op
-        _ = self;
-    }
-};
-
-test "encode AckRange" {
-    const ack_range = AckRange{
-        .gap = 3,
-        .ack_range_length = 4,
-    };
-    var buf: [1024]u8 = undefined;
-    var out = bytes.Bytes{ .buf = &buf };
-
-    try std.testing.expectEqual(@as(usize, 2), ack_range.encodedLength());
-
-    try ack_range.encode(&out);
-    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x03, 0x04 }, out.split().former.buf);
-}
-
-test "decode AckRange" {
-    var buf = [_]u8{ 0x03, 0x04 };
-    var in = bytes.Bytes{ .buf = &buf };
-
-    const got = try AckRange.decode(std.testing.allocator, &in);
-    defer got.deinit();
-
-    try std.testing.expectEqual(@as(u64, 3), got.gap);
-    try std.testing.expectEqual(@as(u64, 4), got.ack_range_length);
 }
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-ecn-counts

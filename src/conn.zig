@@ -396,7 +396,28 @@ pub const Conn = struct {
 
         const payload_offset = out.pos;
 
-        // TODO(magurotuna): create ACK frame
+        // ACK frame
+        // TODO(magurotuna): we need to also check if the packet number space is in "ack-eliciting" state or not.
+        if (pkt_num_space.recv_packet_need_ack.count() > 0) {
+            const ack_delay_micro = pkt_num_space.largest_recv_packet_ack_timer.read() / 1000;
+
+            // TODO(magurotuna): This value should be configured via transport parameters.
+            // For the moment, we use the default value as defined in the RFC.
+            // https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2-4.26.1
+            const ack_delay_exponent = 3;
+
+            const ack_delay = ack_delay_micro / math.pow(u64, 2, ack_delay_exponent);
+
+            const frame = Frame{
+                .ack = .{
+                    .ack_delay = ack_delay,
+                    .ranges = try pkt_num_space.recv_packet_need_ack.clone(),
+                },
+            };
+            defer frame.deinit();
+
+            try frame.encode(&out);
+        }
 
         // CRYPTO frame
         if (pkt_num_space.crypto_stream.isFlushable()) {

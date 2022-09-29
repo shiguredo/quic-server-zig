@@ -44,6 +44,19 @@ pub const RangeSet = struct {
         rec(self.inner.root, self.allocator);
     }
 
+    pub fn clone(self: Self) Allocator.Error!Self {
+        var it = self.iterator();
+
+        var cloned = Self.init(self.allocator);
+        errdefer cloned.deinit();
+
+        while (it.next()) |r| {
+            try cloned.insert(r.*);
+        }
+
+        return cloned;
+    }
+
     pub fn count(self: Self) usize {
         const rec = struct {
             fn f(node: ?*RangeSet.Node) usize {

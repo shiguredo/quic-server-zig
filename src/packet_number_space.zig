@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = std.math;
+const time = std.time;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const crypto = @import("./crypto.zig");
@@ -103,7 +104,12 @@ pub const PacketNumberSpace = struct {
     space_type: SpaceType,
 
     largest_recv_packet_number: u64 = 0,
-    largest_recv_packet_time: u64 = 0,
+
+    /// Timer for calculating how much time has been spent between the following two points:
+    /// 1. the packet with the largest packet number arrived
+    /// 2. the ACK for it is sent
+    largest_recv_packet_ack_timer: time.Timer,
+
     largest_recv_non_probing_packet_number: u64 = 0,
 
     /// https://www.rfc-editor.org/rfc/rfc9000.html#name-packet-numbers
@@ -160,6 +166,7 @@ pub const PacketNumberSpace = struct {
 
         return Self{
             .space_type = space_type,
+            .largest_recv_packet_ack_timer = time.Timer.start() catch unreachable,
             .recv_packet_need_ack = range_set.RangeSet.init(allocator),
             .recv_packet_number = recv_packet_number,
             .crypto_stream = crypto_stream,

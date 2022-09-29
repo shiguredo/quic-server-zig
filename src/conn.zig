@@ -207,14 +207,24 @@ pub const Conn = struct {
         if (payload.buf.len == 0)
             return Error.InvalidPacket;
 
+        // In order to prevent ACK frames from being sent back and forth infinitely, we only send ACK frames in response to ack-eliciting packets.
+        // This flag maintains whether the received packet is ack-eliciting or not.
+        //
+        // https://www.rfc-editor.org/rfc/rfc9000.html#name-generating-acknowledgments
+        var ack_elicited = false;
+
         // Process all frames in the payload.
         while (payload.remainingCapacity() > 0) {
             const frame = try Frame.decode(self.allocator, &payload);
             try self.handleFrame(frame, pkt_num_space);
+
+            ack_elicited = ack_elicited or frame.ackEliciting();
         }
 
         // Update the state of the packet number space with the current packet number.
         try pkt_num_space.updatePacketNumber(pkt_num);
+        // Update the state regarding whether we need to ACK for this packet number space.
+        pkt_num_space.ack_elicited = pkt_num_space.ack_elicited or ack_elicited;
 
         self.recv_count += 1;
         // At this point, `input` should point to the very end of the packet, meaning that
@@ -397,8 +407,7 @@ pub const Conn = struct {
         const payload_offset = out.pos;
 
         // ACK frame
-        // TODO(magurotuna): we need to also check if the packet number space is in "ack-eliciting" state or not.
-        if (pkt_num_space.recv_packet_need_ack.count() > 0) {
+        if (pkt_num_space.recv_packet_need_ack.count() > 0 and pkt_num_space.ack_elicited) {
             const ack_delay_micro = pkt_num_space.largest_recv_packet_ack_timer.read() / 1000;
 
             // TODO(magurotuna): This value should be configured via transport parameters.
@@ -417,6 +426,9 @@ pub const Conn = struct {
             defer frame.deinit();
 
             try frame.encode(&out);
+
+            // Now that we have sent an ACK frame, we reset the ack_elicited field.
+            pkt_num_space.ack_elicited = false;
         }
 
         // CRYPTO frame

@@ -80,4 +80,13 @@ pub const Frame = union(FrameType) {
             .connection_close => unreachable,
         }
     }
+
+    pub fn ackEliciting(self: Self) bool {
+        const non_ack_eliciting =
+            self == .ack or
+            self == .crypto or
+            self == .connection_close;
+
+        return !non_ack_eliciting;
+    }
 };

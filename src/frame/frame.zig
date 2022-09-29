@@ -84,7 +84,7 @@ pub const Frame = union(FrameType) {
     pub fn ackEliciting(self: Self) bool {
         const non_ack_eliciting =
             self == .ack or
-            self == .crypto or
+            self == .padding or
             self == .connection_close;
 
         return !non_ack_eliciting;

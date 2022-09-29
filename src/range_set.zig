@@ -150,19 +150,8 @@ pub const RangeSet = struct {
 
             return &cur.key;
         }
-    };
 
-    pub fn iterator(self: *const Self) Iterator {
-        // Look for the minimum range in the tree.
-        var min_range = findMin(self.inner.root);
-
-        return .{ .cur = min_range };
-    }
-
-    pub const ReverseIterator = struct {
-        cur: ?*Node,
-
-        pub fn prev(self: *ReverseIterator) ?*Range {
+        pub fn prev(self: *Iterator) ?*Range {
             const cur = self.cur orelse return null;
 
             // Look for the node containing the next largest range.
@@ -188,7 +177,16 @@ pub const RangeSet = struct {
         }
     };
 
-    pub fn reverseIterator(self: *const Self) ReverseIterator {
+    /// Return the iterator that begins with the first (smallest) element of the set.
+    pub fn iterator(self: *const Self) Iterator {
+        // Look for the minimum range in the tree.
+        var min_range = findMin(self.inner.root);
+
+        return .{ .cur = min_range };
+    }
+
+    /// Return the iterator that begins with the last (biggest) element of the set.
+    pub fn iteratorBack(self: *const Self) Iterator {
         // Look for the maximum range in the tree.
         var max_range = findMax(self.inner.root);
 
@@ -287,7 +285,7 @@ const RangeSetTest = struct {
         return compareRange(a, b) == .eq;
     }
 
-    test "iterator" {
+    test "iterator (forward)" {
         var set = RangeSet.init(std.testing.allocator);
         defer set.deinit();
 
@@ -311,7 +309,7 @@ const RangeSetTest = struct {
         try std.testing.expect(it.next() == null);
     }
 
-    test "reverseIterator" {
+    test "iterator (backward)" {
         var set = RangeSet.init(std.testing.allocator);
         defer set.deinit();
 
@@ -319,7 +317,7 @@ const RangeSetTest = struct {
         try set.insert(.{ .start = 20, .end = 29 });
         try set.insert(.{ .start = 7, .end = 9 });
 
-        var it = set.reverseIterator();
+        var it = set.iteratorBack();
         try std.testing.expect(eq(
             it.prev().?.*,
             .{ .start = 20, .end = 29 },

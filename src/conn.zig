@@ -405,7 +405,7 @@ pub const Conn = struct {
         // Minimum length of bytes required to write the packet.
         const overhead = out.pos + pkt_num_len + aead_len + payload_length_len;
 
-        left -= math.sub(usize, left, overhead) catch return error.DoneSend;
+        left = math.sub(usize, left, overhead) catch return error.DoneSend;
 
         const length_field_offset = out.pos;
         // The total length of payload is unknown at this point. We reserve certain bytes
@@ -468,7 +468,7 @@ pub const Conn = struct {
         pkt_num_space.next_packet_number += 1;
 
         return SendSignleResult{
-            .n_written = 0,
+            .n_written = out.split().former.buf.len,
             .packet_type = pkt_type,
         };
     }

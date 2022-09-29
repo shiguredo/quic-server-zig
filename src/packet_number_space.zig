@@ -1,6 +1,7 @@
 const std = @import("std");
 const math = std.math;
 const time = std.time;
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const crypto = @import("./crypto.zig");
@@ -217,3 +218,49 @@ pub const PacketNumberSpace = struct {
         return self.crypto_stream.isFlushable();
     }
 };
+
+/// Return the appropriate size in bytes that encoded packet number takes.
+/// The algorithm is introduced in:
+/// https://www.rfc-editor.org/rfc/rfc9000.html#name-sample-packet-number-encodin
+fn encodedPakcetNumberBytes(full_pkt_num: u64, largest_acked: ?u64) usize {
+    const num_unacked = if (largest_acked) |l|
+        full_pkt_num - l
+    else
+        full_pkt_num + 1;
+
+    const min_bits = math.log2(num_unacked) + 1;
+    return math.divCeil(u64, min_bits, 8) catch unreachable;
+}
+
+test "encodedPakcetNumberBytes test case from RFC" {
+    // Taken from https://www.rfc-editor.org/rfc/rfc9000.html#name-sample-packet-number-encodi
+    try std.testing.expectEqual(@as(usize, 2), encodedPakcetNumberBytes(0xac5c02, 0xabe8b3));
+    try std.testing.expectEqual(@as(usize, 3), encodedPakcetNumberBytes(0xace8fe, 0xabe8b3));
+}
+
+/// Decode the given packet number.
+/// The algorithm is introduced in:
+/// https://www.rfc-editor.org/rfc/rfc9000.html#name-sample-packet-number-decodin
+fn decodePacketNumber(largest_pkt_num: u64, truncated_pkt_num: u64, pkt_num_bits: usize) u64 {
+    // The maximum length of a encoded packet number is 32 in bits.
+    assert(pkt_num_bits <= 32);
+
+    const expected_pkt_num = largest_pkt_num + 1;
+    const pkt_num_win = @intCast(u64, 1) << @intCast(u5, pkt_num_bits);
+    const pkt_num_hwin = pkt_num_win / 2;
+    const pkt_num_mask = pkt_num_win - 1;
+
+    const candidate = (expected_pkt_num & ~pkt_num_mask) | truncated_pkt_num;
+
+    if ((candidate <= expected_pkt_num - pkt_num_hwin) and (candidate < (1 << 62) - pkt_num_win))
+        return candidate + pkt_num_win;
+    if ((candidate > expected_pkt_num + pkt_num_hwin) and (candidate >= pkt_num_win))
+        return candidate - pkt_num_win;
+
+    return candidate;
+}
+
+test "decodePacketNumber test case from RFC" {
+    // Taken from https://www.rfc-editor.org/rfc/rfc9000.html#name-sample-packet-number-encodi
+    try std.testing.expectEqual(@as(u64, 0xa82f9b32), decodePacketNumber(0xa82f30ea, 0x9b32, 16));
+}

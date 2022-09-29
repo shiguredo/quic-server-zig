@@ -14,7 +14,9 @@ const tls = @import("./tls.zig");
 const encode_crypto_header = @import("./frame/crypto.zig").encode_crypto_header;
 
 pub const Conn = struct {
+    /// Source Connection ID for the server.
     scid: ArrayList(u8),
+    /// Destination Connection ID for the server.
     dcid: ArrayList(u8),
     pkt_num_spaces: packet_number_space.PacketNumberSpaces,
     peer_transport_params: TransportParameters,
@@ -77,8 +79,10 @@ pub const Conn = struct {
         errdefer handshake.deinit();
 
         return Self{
-            .scid = scid_owned,
-            .dcid = dcid_owned,
+            // dcid coming from the client corresponds to scid for the server.
+            .scid = dcid_owned,
+            // scid coming from the client corresponds to dcid for the server.
+            .dcid = scid_owned,
             .pkt_num_spaces = pkt_num_spaces,
             .peer_transport_params = TransportParameters.default(),
             // TODO(magurotuna) expose the way of configuring transport params

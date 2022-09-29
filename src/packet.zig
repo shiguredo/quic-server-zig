@@ -4,6 +4,7 @@ const crypto = @import("./crypto.zig");
 const Frame = @import("./frame/frame.zig").Frame;
 
 pub const decryptPayload = @import("./packet/decrypt.zig").decrypt;
+pub const encryptPacket = @import("./packet/encrypt.zig").encrypt;
 pub const PacketType = @import("./packet/packet_type.zig").PacketType;
 pub const Header = @import("./packet/header.zig");
 pub const Initial = @import("./packet/initial.zig").Initial;

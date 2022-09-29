@@ -224,6 +224,12 @@ pub const Bytes = struct {
     pub fn putVarInt(self: *Self, value: u64) Error!void {
         const length = varIntLength(value);
 
+        try self.putVarIntWithLength(value, length);
+    }
+
+    /// Writes the given integer as variable-length encoded in the specified length, into the current
+    /// position of the buffer, advancing the position.
+    pub fn putVarIntWithLength(self: *Self, value: u64, length: usize) Error!void {
         var rest = self.buf[self.pos..];
         if (rest.len < length)
             return Error.BufferTooShort;

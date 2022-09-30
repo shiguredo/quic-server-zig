@@ -294,6 +294,7 @@ pub const Conn = struct {
     ) !void {
         switch (frame) {
             .padding => {},
+            .ping => {},
             .ack => |ack| {
                 const ack_delay = math.mul(
                     u64,

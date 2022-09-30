@@ -1,7 +1,6 @@
 const std = @import("std");
 const VariableLengthVector = @import("../variable_length_vector.zig").VariableLengthVector;
 const Bytes = @import("../bytes.zig").Bytes;
-const CipherSuite = @import("./cipher_suite.zig").CipherSuite;
 const Extension = @import("./extension.zig").Extension;
 
 /// https://www.rfc-editor.org/rfc/rfc8446.html#section-4.3.1

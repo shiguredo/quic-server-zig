@@ -70,7 +70,7 @@ pub const Frame = union(FrameType) {
         const ty = try in.peekVarInt();
         return switch (FrameType.fromInt(ty)) {
             .padding => .{ .padding = try Padding.decode(allocator, in) },
-            .ping => .{ .ping = .{} },
+            .ping => .{ .ping = try Ping.decode(allocator, in) },
             .ack => .{ .ack = try Ack.decode(allocator, in) },
             .crypto => .{ .crypto = try Crypto.decode(allocator, in) },
             // TODO(magurotuna) implement

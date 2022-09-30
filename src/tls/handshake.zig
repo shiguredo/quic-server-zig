@@ -3,6 +3,7 @@ const Bytes = @import("../bytes.zig").Bytes;
 const utils = @import("../utils.zig");
 const ClientHello = @import("./client_hello.zig").ClientHello;
 const ServerHello = @import("./server_hello.zig").ServerHello;
+const EncryptedExtensions = @import("./encrypted_extensions.zig").EncryptedExtensions;
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3
 ///
@@ -60,7 +61,6 @@ const NoContent = struct {};
 
 // TODO(magurotuna): implement these handshake message types
 pub const EndOfEarlyData = struct {};
-pub const EncryptedExtensions = struct {};
 pub const Certificate = struct {};
 pub const CertificateVerify = struct {};
 pub const Finished = struct {};

@@ -102,7 +102,7 @@ test "encode Server Hello" {
 }
 
 test "encode Server Hello with extensions" {
-    const KeyExchange = @import("../tls/extension/key_share.zig").KeyExchange;
+    const KeyExchange = @import("./extension/key_share.zig").KeyExchange;
 
     const sh = ServerHello{
         .random = .{

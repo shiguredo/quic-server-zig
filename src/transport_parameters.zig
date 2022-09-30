@@ -23,7 +23,6 @@ disable_active_migration: bool,
 active_conn_id_limit: u64,
 initial_source_connection_id: ?ArrayList(u8),
 retry_source_connection_id: ?ArrayList(u8),
-max_datagram_frame_size: ?u64,
 
 const Self = @This();
 
@@ -49,7 +48,6 @@ pub fn default() Self {
         .active_conn_id_limit = 2,
         .initial_source_connection_id = null,
         .retry_source_connection_id = null,
-        .max_datagram_frame_size = null,
     };
 }
 

@@ -9,6 +9,7 @@ const derive = @import("./tls/derive.zig");
 const handshake = @import("./tls/handshake.zig");
 const client_hello = @import("./tls/client_hello.zig");
 const server_hello = @import("./tls/server_hello.zig");
+const encrypted_extensions = @import("./tls/encrypted_extensions.zig");
 const cipher_suite = @import("./tls/cipher_suite.zig");
 const extension = @import("./tls/extension.zig");
 const supported_groups = @import("./tls/extension/supported_groups.zig");
@@ -20,6 +21,7 @@ const version = @import("./version.zig");
 const assert = std.debug.assert;
 const X25519 = std.crypto.dh.X25519;
 const TransportParameters = @import("./transport_parameters.zig");
+const TransportParametersExt = @import("./tls/extension/quic_transport_parameters.zig").TransportParameters;
 
 pub const Cryptor = cryptor.Cryptor;
 
@@ -168,7 +170,14 @@ pub const Handshake = struct {
         };
     }
 
-    /// Generate ServerHello message based on information from ClientHello.
+    /// Generate messages including the following, based on information from ClientHello.
+    /// Generated messages are bufferred into `self.send_bufs` that the QUIC stack will then read from.
+    ///
+    /// - ServerHello
+    /// - EncryptedExtensions
+    /// - Certificate
+    /// - Certificate Verify
+    /// - Finished
     fn handleClientHello(self: *Self, ch: client_hello.ClientHello) !?KeyChange {
         const suite = cipher_suite.pickCipherSuite(ch.cipher_suites.data.items) orelse
             return error.NoSupportedCipherSuite;
@@ -286,7 +295,7 @@ pub const Handshake = struct {
         var decryptor = try TempSuite.fromSecret(self.allocator, client_handshake_traffic_secret);
         errdefer decryptor.deinit();
 
-        return .{
+        const handshake_key = KeyChange{
             .handshake = .{
                 .keys = .{
                     .local = encryptor,
@@ -294,6 +303,27 @@ pub const Handshake = struct {
                 },
             },
         };
+
+        // EncryptedExtensions
+        const ee_hs = handshake.Handshake{
+            .encrypted_extensions = .{
+                .extensions = try encrypted_extensions.EncryptedExtensions.Extensions.fromSlice(self.allocator, &.{
+                    .{
+                        .quic_transport_parameters = try TransportParametersExt.fromQuic(self.allocator, self.transport_params),
+                    },
+                }),
+            },
+        };
+        defer ee_hs.deinit();
+
+        try self.writeToSendBuf(.handshake, ee_hs);
+        try self.appendHandshakeMessage(ee_hs);
+
+        // Certificate
+        // Certificate Verify
+        // Finished
+
+        return handshake_key;
     }
 
     /// Write the encoded handshake data into the send buffer with the specified encryption level.

@@ -1,10 +1,12 @@
 const std = @import("std");
 const mem = std.mem;
+const Allocator = mem.Allocator;
 const meta = std.meta;
 const ArrayList = std.ArrayList;
 const BoundedArray = std.BoundedArray;
 const bytes = @import("../../bytes.zig");
 const utils = @import("../../utils.zig");
+const QUICTransportParams = @import("../../transport_parameters.zig");
 
 /// https://www.rfc-editor.org/rfc/rfc9000.html#name-transport-parameter-encodin
 ///
@@ -15,6 +17,82 @@ pub const TransportParameters = struct {
     parameters: ArrayList(TransportParameter),
 
     const Self = @This();
+
+    pub fn fromQuic(allocator: Allocator, quic_params: QUICTransportParams) !Self {
+        const n_params = meta.fields(@TypeOf(quic_params)).len;
+        var params = try ArrayList(TransportParameter).initCapacity(allocator, n_params);
+        errdefer params.deinit();
+
+        // original_destination_connection_id
+        if (quic_params.original_destination_connection_id) |odcid| {
+            var cloned = try ArrayList(u8).initCapacity(allocator, odcid.items.len);
+            errdefer cloned.deinit();
+            cloned.appendSliceAssumeCapacity(odcid.items);
+            params.appendAssumeCapacity(.{ .original_destination_connection_id = cloned });
+        }
+
+        // max_idle_timeout
+        params.appendAssumeCapacity(.{ .max_idle_timeout = quic_params.max_idle_timeout });
+
+        // stateless_reset_token
+        if (quic_params.stateless_reset_token) |tok| {
+            var p = TransportParameter{ .stateless_reset_token = undefined };
+            mem.copy(u8, &p.stateless_reset_token, &tok);
+            params.appendAssumeCapacity(p);
+        }
+
+        // max_udp_payload_size
+        params.appendAssumeCapacity(.{ .max_udp_payload_size = quic_params.max_udp_payload_size });
+
+        // initial_max_data
+        params.appendAssumeCapacity(.{ .initial_max_data = quic_params.initial_max_data });
+
+        // initial_max_stream_data_bidi_local
+        params.appendAssumeCapacity(.{ .initial_max_stream_data_bidi_local = quic_params.initial_max_stream_data_bidi_local });
+
+        // initial_max_stream_data_bidi_remote
+        params.appendAssumeCapacity(.{ .initial_max_stream_data_bidi_remote = quic_params.initial_max_stream_data_bidi_remote });
+
+        // initial_max_stream_data_uni
+        params.appendAssumeCapacity(.{ .initial_max_stream_data_uni = quic_params.initial_max_stream_data_uni });
+
+        // initial_max_streams_bidi
+        params.appendAssumeCapacity(.{ .initial_max_streams_bidi = quic_params.initial_max_streams_bidi });
+
+        // initial_max_streams_uni
+        params.appendAssumeCapacity(.{ .initial_max_streams_uni = quic_params.initial_max_streams_uni });
+
+        // ack_delay_exponent
+        params.appendAssumeCapacity(.{ .ack_delay_exponent = quic_params.ack_delay_exponent });
+
+        // max_ack_delay
+        params.appendAssumeCapacity(.{ .max_ack_delay = quic_params.max_ack_delay });
+
+        // disable_active_migration
+        if (quic_params.disable_active_migration)
+            params.appendAssumeCapacity(.{ .disable_active_migration = {} });
+
+        // active_connection_id_limit
+        params.appendAssumeCapacity(.{ .active_connection_id_limit = quic_params.active_conn_id_limit });
+
+        // initial_source_connection_id
+        if (quic_params.initial_source_connection_id) |id| {
+            var cloned = try ArrayList(u8).initCapacity(allocator, id.items.len);
+            errdefer cloned.deinit();
+            cloned.appendSliceAssumeCapacity(id.items);
+            params.appendAssumeCapacity(.{ .initial_source_connection_id = cloned });
+        }
+
+        // retry_source_connection_id
+        if (quic_params.retry_source_connection_id) |id| {
+            var cloned = try ArrayList(u8).initCapacity(allocator, id.items.len);
+            errdefer cloned.deinit();
+            cloned.appendSliceAssumeCapacity(id.items);
+            params.appendAssumeCapacity(.{ .retry_source_connection_id = cloned });
+        }
+
+        return Self{ .parameters = params };
+    }
 
     pub fn encodedLength(self: Self) usize {
         var len: usize = 0;
@@ -31,7 +109,7 @@ pub const TransportParameters = struct {
     }
 
     /// Callers must guarantee that the input buffer `in` contains quic_transport_parameters only.
-    pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
+    pub fn decode(allocator: Allocator, in: *bytes.Bytes) !Self {
         var params = ArrayList(TransportParameter).init(allocator);
         errdefer params.deinit();
 
@@ -328,7 +406,7 @@ pub const TransportParameter = union(TransportParameterId) {
         }
     }
 
-    pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
+    pub fn decode(allocator: Allocator, in: *bytes.Bytes) !Self {
         const id = try in.consumeVarInt();
         const length = try in.consumeVarInt();
         var param_value_bytes = bytes.Bytes{ .buf = try in.consumeBytes(length) };
@@ -602,7 +680,7 @@ pub const PreferredAddress = struct {
         try out.putBytes(&self.stateless_reset_token);
     }
 
-    pub fn decode(allocator: std.mem.Allocator, in: *bytes.Bytes) !Self {
+    pub fn decode(allocator: Allocator, in: *bytes.Bytes) !Self {
         _ = allocator;
 
         var ret: Self = undefined;

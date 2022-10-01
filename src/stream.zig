@@ -153,6 +153,7 @@ pub const SendBuf = struct {
             mem.copy(u8, buf[done..(done + head.len)], head.data);
             done += head.len;
             left -= head.len;
+            self.length -= head.len;
         }
 
         return done;
@@ -162,6 +163,12 @@ pub const SendBuf = struct {
     pub fn ready(self: Self) bool {
         // TODO(magurotuna): take ack into account.
         return self.data.len() != 0;
+    }
+
+    /// Return the offset of the first (lowest) buffer.
+    pub fn offset_front(self: Self) usize {
+        const head = self.data.get(0) orelse return self.offset;
+        return head.offset;
     }
 };
 

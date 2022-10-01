@@ -452,7 +452,7 @@ pub const Conn = struct {
 
         // CRYPTO frame
         if (pkt_num_space.crypto_stream.isFlushable()) {
-            const crypto_offset = pkt_num_space.crypto_stream.send.offset;
+            const crypto_offset = pkt_num_space.crypto_stream.send.offset_front();
             const hdr_len = 1 + // frame type
                 bytes.varIntLength(@intCast(u64, crypto_offset)) + // offset
                 2; // length, always encode as 2-byte varint

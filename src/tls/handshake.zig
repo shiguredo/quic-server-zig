@@ -115,6 +115,7 @@ pub const Handshake = union(HandshakeType) {
         len += switch (self) {
             .client_hello => |ch| ch.encodedLength(),
             .server_hello => |sh| sh.encodedLength(),
+            .encrypted_extensions => |ee| ee.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
         };
@@ -126,6 +127,7 @@ pub const Handshake = union(HandshakeType) {
         try out.put(u24, @intCast(u24, switch (self) {
             .client_hello => |ch| ch.encodedLength(),
             .server_hello => |sh| sh.encodedLength(),
+            .encrypted_extensions => |ee| ee.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
         }));
@@ -133,6 +135,7 @@ pub const Handshake = union(HandshakeType) {
         switch (self) {
             .client_hello => |ch| try ch.encode(out),
             .server_hello => |sh| try sh.encode(out),
+            .encrypted_extensions => |ee| try ee.encode(out),
             // TODO(magurotuna): implement
             else => unreachable,
         }
@@ -155,6 +158,7 @@ pub const Handshake = union(HandshakeType) {
         switch (self) {
             .client_hello => |ch| ch.deinit(),
             .server_hello => |sh| sh.deinit(),
+            .encrypted_extensions => |ee| ee.deinit(),
             // TODO(magurotuna): implement
             else => unreachable,
         }

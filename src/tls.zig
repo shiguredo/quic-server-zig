@@ -18,6 +18,7 @@ const key_share = @import("./tls/extension/key_share.zig");
 const Deque = @import("./deque.zig").Deque;
 const Bytes = @import("./bytes.zig").Bytes;
 const version = @import("./version.zig");
+const Config = @import("./config.zig");
 const assert = std.debug.assert;
 const X25519 = std.crypto.dh.X25519;
 const TransportParameters = @import("./transport_parameters.zig");
@@ -80,6 +81,12 @@ pub const Handshake = struct {
     /// > Transcript-Hash(M1, M2, ... Mn) = Hash(M1 || M2 || ... || Mn)
     concat_handshake_messages: ArrayList(u8),
 
+    /// The slice is owned by this struct.
+    certificate: []const u8,
+
+    /// The slice is owned by this struct.
+    private_key: []const u8,
+
     allocator: Allocator,
 
     const Self = @This();
@@ -87,7 +94,7 @@ pub const Handshake = struct {
     const SendBufs = EnumArray(EncryptionLevel, Deque(u8));
     const CurrentSecret = BoundedArray(u8, 64);
 
-    pub fn init(allocator: Allocator, transport_params: TransportParameters) Allocator.Error!Self {
+    pub fn init(allocator: Allocator, config: *const Config) Allocator.Error!Self {
         var recv_bufs = recv: {
             var r = RecvBufs.initUndefined();
             inline for (std.meta.fields(EncryptionLevel)) |f| {
@@ -108,20 +115,38 @@ pub const Handshake = struct {
         };
 
         return Self{
-            .transport_params = transport_params,
+            .transport_params = try config.local_transport_params.clone(allocator),
             .rx_encryption_level = .initial,
             .tx_encryption_level = .initial,
             .recv_bufs = recv_bufs,
             .send_bufs = send_bufs,
             .concat_handshake_messages = ArrayList(u8).init(allocator),
+            .certificate = try allocator.dupe(u8, config.der_certificate),
+            .private_key = try allocator.dupe(u8, config.private_key),
             .allocator = allocator,
         };
     }
 
-    pub fn deinit(self: Self) void {
-        self.recv_buf.deinit();
-        self.send_buf.deinit();
+    pub fn deinit(self: *Self) void {
+        self.transport_params.deinit();
+
+        {
+            var it = self.recv_bufs.iterator();
+            while (it.next()) |b| {
+                b.value.deinit();
+            }
+        }
+
+        {
+            var it = self.send_bufs.iterator();
+            while (it.next()) |b| {
+                b.value.deinit();
+            }
+        }
+
         self.concat_handshake_messages.deinit();
+        self.allocator.free(self.certificate);
+        self.allocator.free(self.private_key);
     }
 
     /// Receive plain TLS handshake data sent from the peer.

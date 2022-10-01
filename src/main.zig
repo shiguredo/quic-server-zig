@@ -65,7 +65,7 @@ pub fn main() !void {
             }
 
             // Create a new Conn
-            var conn = try Conn.accept(allocator, hdr.scid.items, hdr.dcid.items, addr, recv.src);
+            var conn = try Conn.accept(allocator, hdr.scid.items, hdr.dcid.items, addr, recv.src, &quic_config);
 
             const n_processed = try conn.recv(recv_buf[0..recv.num_bytes], addr, recv.src);
             _ = n_processed;

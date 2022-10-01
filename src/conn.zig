@@ -11,6 +11,7 @@ const version = @import("./version.zig");
 const TransportParameters = @import("./transport_parameters.zig");
 const Frame = @import("./frame/frame.zig").Frame;
 const tls = @import("./tls.zig");
+const Config = @import("./config.zig");
 const encode_crypto_header = @import("./frame/crypto.zig").encode_crypto_header;
 
 pub const Conn = struct {
@@ -56,6 +57,7 @@ pub const Conn = struct {
         dcid: []const u8,
         local: net.Address,
         peer: net.Address,
+        config: *const Config,
     ) !Self {
         // TODO(magurotuna): use these values probably for path verification
         _ = local;
@@ -75,7 +77,7 @@ pub const Conn = struct {
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
 
-        var handshake = try tls.Handshake.init(allocator, TransportParameters.default());
+        var handshake = try tls.Handshake.init(allocator, config);
         errdefer handshake.deinit();
 
         return Self{
@@ -85,8 +87,7 @@ pub const Conn = struct {
             .dcid = scid_owned,
             .pkt_num_spaces = pkt_num_spaces,
             .peer_transport_params = TransportParameters.default(),
-            // TODO(magurotuna) expose the way of configuring transport params
-            .local_transport_params = TransportParameters.default(),
+            .local_transport_params = try config.local_transport_params.clone(allocator),
             .handshake = handshake,
             .allocator = allocator,
         };
@@ -95,6 +96,9 @@ pub const Conn = struct {
     pub fn deinit(self: Self) void {
         self.source_connection_id.deinit();
         self.destination_connection_id.deinit();
+        self.peer_transport_params.deinit();
+        self.local_transport_params.deinit();
+        self.handshake.deinit();
     }
 
     pub fn recv(self: *Self, buf: []u8, local: net.Address, peer: net.Address) !usize {

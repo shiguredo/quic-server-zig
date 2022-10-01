@@ -6,6 +6,7 @@ const packet = @import("./packet.zig");
 const Conn = @import("./conn.zig").Conn;
 const Frame = @import("./frame/frame.zig").Frame;
 const Ack = @import("./frame/frame.zig").Ack;
+const config = @import("./config.zig");
 
 const udp_recv_buf_size = 65535;
 const udp_send_buf_size = 1350;
@@ -27,6 +28,16 @@ pub fn main() !void {
 
     var clients = ClientMap.init(allocator);
     defer clients.deinit();
+
+    const quic_config = cfg: {
+        var config_builder = config.Builder.init(allocator);
+        errdefer config_builder.deinit();
+        try config_builder.loadCertificateFromDer("./test/cert.der");
+        try config_builder.loadPrivateKey("./test/key.der");
+        const cfg = try config_builder.build();
+        break :cfg cfg;
+    };
+    defer quic_config.deinit();
 
     loop: while (true) {
         // Receive data from a client.

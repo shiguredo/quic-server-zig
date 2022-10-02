@@ -29,7 +29,7 @@ pub fn main() !void {
     var clients = ClientMap.init(allocator);
     defer clients.deinit();
 
-    const quic_config = cfg: {
+    var quic_config = cfg: {
         var config_builder = config.Builder.init(allocator);
         errdefer config_builder.deinit();
         try config_builder.loadCertificateFromDer("./test/cert.der");

@@ -57,7 +57,7 @@ pub const Conn = struct {
         dcid: []const u8,
         local: net.Address,
         peer: net.Address,
-        config: *const Config,
+        config: *Config,
     ) !Self {
         // TODO(magurotuna): use these values probably for path verification
         _ = local;
@@ -77,6 +77,22 @@ pub const Conn = struct {
         // For the Initial space, we can derive data needed to encrypt/decrypt right away.
         try pkt_num_spaces.setInitialCryptor(allocator, dcid, true);
 
+        var local_transport_params = try config.local_transport_params.clone(allocator);
+        errdefer local_transport_params.deinit();
+        local_transport_params.original_destination_connection_id = try dcid_owned.clone();
+
+        // https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2-4.2.1
+        //
+        // > This parameter is the value of the Destination Connection ID field from the first
+        // > Initial packet sent by the client; see Section 7.3. This transport parameter is only
+        // > sent by a server.
+        config.local_transport_params.original_destination_connection_id = try dcid_owned.clone();
+
+        // https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2-6.4.1
+        //
+        // > This is the value that the endpoint included in the Source Connection ID field of
+        // > the first Initial packet it sends for the connection
+        config.local_transport_params.initial_source_connection_id = try dcid_owned.clone();
         var handshake = try tls.Handshake.init(allocator, config);
         errdefer handshake.deinit();
 
@@ -87,7 +103,7 @@ pub const Conn = struct {
             .dcid = scid_owned,
             .pkt_num_spaces = pkt_num_spaces,
             .peer_transport_params = TransportParameters.default(),
-            .local_transport_params = try config.local_transport_params.clone(allocator),
+            .local_transport_params = local_transport_params,
             .handshake = handshake,
             .allocator = allocator,
         };

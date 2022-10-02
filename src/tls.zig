@@ -16,6 +16,7 @@ const extension = @import("./tls/extension.zig");
 const supported_groups = @import("./tls/extension/supported_groups.zig");
 const supported_versions = @import("./tls/extension/supported_versions.zig");
 const key_share = @import("./tls/extension/key_share.zig");
+const alpn = @import("./tls/extension/application_layer_protocol_negotiation.zig");
 const Deque = @import("./deque.zig").Deque;
 const Bytes = @import("./bytes.zig").Bytes;
 const version = @import("./version.zig");
@@ -210,6 +211,7 @@ pub const Handshake = struct {
 
         var group_used: supported_groups.NamedGroup = undefined;
         var key_share_ent: key_share.KeyShareEntry = undefined;
+        var app_proto: alpn.ProtocolName = undefined;
         for (ch.extensions.data.items) |ext| {
             switch (ext) {
                 .supported_groups => |groups| {
@@ -219,6 +221,13 @@ pub const Handshake = struct {
                 .key_share => |shares| {
                     key_share_ent = key_share.pickKeyShareEntry(shares.client_shares.data.items) orelse
                         return error.NoSupportedNamedGroup;
+                },
+                .application_layer_protocol_negotiation => |client_alpn| {
+                    const protos = client_alpn.protocol_name_list.data.items;
+                    if (protos.len == 0)
+                        return error.InvalidALPN;
+                    // TODO(magurotuna): We choose the first protocol as a negotiated one for now.
+                    app_proto = protos[0];
                 },
                 else => {
                     // TODO(magurotuna)
@@ -334,6 +343,11 @@ pub const Handshake = struct {
         const ee_hs = handshake.Handshake{
             .encrypted_extensions = .{
                 .extensions = try encrypted_extensions.EncryptedExtensions.Extensions.fromSlice(self.allocator, &.{
+                    .{
+                        .application_layer_protocol_negotiation = alpn.ApplicationLayerProtocolNegotiation{
+                            .protocol_name_list = try alpn.ProtocolNames.fromSlice(self.allocator, &.{app_proto}),
+                        },
+                    },
                     .{
                         .quic_transport_parameters = try TransportParametersExt.fromQuic(self.allocator, self.transport_params),
                     },

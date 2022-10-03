@@ -11,6 +11,7 @@ const client_hello = @import("./tls/client_hello.zig");
 const server_hello = @import("./tls/server_hello.zig");
 const encrypted_extensions = @import("./tls/encrypted_extensions.zig");
 const certificate = @import("./tls/certificate.zig");
+const certificate_verify = @import("./tls/certificate_verify.zig");
 const cipher_suite = @import("./tls/cipher_suite.zig");
 const extension = @import("./tls/extension.zig");
 const supported_groups = @import("./tls/extension/supported_groups.zig");
@@ -369,6 +370,20 @@ pub const Handshake = struct {
         try self.appendHandshakeMessage(cert_hs);
 
         // Certificate Verify
+        const cv_hs = handshake.Handshake{
+            .certificate_verify = try certificate_verify.CertificateVerify.sign(
+                self.allocator,
+                .ecdsa_secp256r1_sha256,
+                self.private_key,
+                self.concat_handshake_messages.items,
+                true,
+            ),
+        };
+        defer cv_hs.deinit();
+
+        try self.writeToSendBuf(.handshake, cv_hs);
+        try self.appendHandshakeMessage(cv_hs);
+
         // Finished
 
         return handshake_key;

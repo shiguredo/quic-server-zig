@@ -12,6 +12,7 @@ const server_hello = @import("./tls/server_hello.zig");
 const encrypted_extensions = @import("./tls/encrypted_extensions.zig");
 const certificate = @import("./tls/certificate.zig");
 const certificate_verify = @import("./tls/certificate_verify.zig");
+const finished = @import("./tls/finished.zig");
 const cipher_suite = @import("./tls/cipher_suite.zig");
 const extension = @import("./tls/extension.zig");
 const supported_groups = @import("./tls/extension/supported_groups.zig");
@@ -385,6 +386,12 @@ pub const Handshake = struct {
         try self.appendHandshakeMessage(cv_hs);
 
         // Finished
+        const verify_data = try derive.verifyDataForFinished(TempSuite, server_handshake_traffic_secret, self.concat_handshake_messages.items);
+        const fi_hs = handshake.Handshake{ .finished = finished.Finished.fromVerifyData(&verify_data) };
+        defer fi_hs.deinit();
+
+        try self.writeToSendBuf(.handshake, fi_hs);
+        try self.appendHandshakeMessage(fi_hs);
 
         return handshake_key;
     }

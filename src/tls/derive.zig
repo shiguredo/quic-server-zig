@@ -118,6 +118,22 @@ pub fn handshakeTrafficSecret(
     return try deriveSecret(CipherSuite, handshake_secret, label, ch_sh_msg);
 }
 
+pub fn verifyDataForFinished(
+    comptime CipherSuite: type,
+    base_key: [CipherSuite.Hmac.mac_length]u8,
+    transcript_hash_key: []const u8,
+) ![CipherSuite.Hmac.mac_length]u8 {
+    var finished_key: [CipherSuite.Hash.digest_length]u8 = undefined;
+    try hkdfExpandLabel(CipherSuite, base_key, "finished", "", &finished_key);
+
+    var transcript_hash: [CipherSuite.Hash.digest_length]u8 = undefined;
+    CipherSuite.Hash.hash(transcript_hash_key, &transcript_hash, .{});
+
+    var out: [CipherSuite.Hmac.mac_length]u8 = undefined;
+    CipherSuite.Hmac.create(&out, &transcript_hash, &finished_key);
+    return out;
+}
+
 /// Derive AEAD Key (key) from the given secret.
 pub fn aeadKey(
     comptime CipherSuite: type,

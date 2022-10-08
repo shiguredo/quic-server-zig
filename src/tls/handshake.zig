@@ -6,6 +6,7 @@ const ServerHello = @import("./server_hello.zig").ServerHello;
 const EncryptedExtensions = @import("./encrypted_extensions.zig").EncryptedExtensions;
 const Certificate = @import("./certificate.zig").Certificate;
 const CertificateVerify = @import("./certificate_verify.zig").CertificateVerify;
+const Finished = @import("./finished.zig").Finished;
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3
 ///
@@ -63,7 +64,6 @@ const NoContent = struct {};
 
 // TODO(magurotuna): implement these handshake message types
 pub const EndOfEarlyData = struct {};
-pub const Finished = struct {};
 pub const KeyUpdate = struct {};
 
 /// https://www.rfc-editor.org/rfc/rfc8446#appendix-B.3
@@ -118,6 +118,7 @@ pub const Handshake = union(HandshakeType) {
             .encrypted_extensions => |ee| ee.encodedLength(),
             .certificate => |cert| cert.encodedLength(),
             .certificate_verify => |cv| cv.encodedLength(),
+            .finished => |fi| fi.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
         };
@@ -132,6 +133,7 @@ pub const Handshake = union(HandshakeType) {
             .encrypted_extensions => |ee| ee.encodedLength(),
             .certificate => |cert| cert.encodedLength(),
             .certificate_verify => |cv| cv.encodedLength(),
+            .finished => |fi| fi.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
         }));
@@ -142,6 +144,7 @@ pub const Handshake = union(HandshakeType) {
             .encrypted_extensions => |ee| try ee.encode(out),
             .certificate => |cert| try cert.encode(out),
             .certificate_verify => |cv| try cv.encode(out),
+            .finished => |fi| try fi.encode(out),
             // TODO(magurotuna): implement
             else => unreachable,
         }
@@ -167,6 +170,7 @@ pub const Handshake = union(HandshakeType) {
             .encrypted_extensions => |ee| ee.deinit(),
             .certificate => |cert| cert.deinit(),
             .certificate_verify => |cv| cv.deinit(),
+            .finished => |fi| fi.deinit(),
             // TODO(magurotuna): implement
             else => unreachable,
         }

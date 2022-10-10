@@ -232,8 +232,8 @@ pub const Handshake = struct {
                     app_proto = protos[0];
                 },
                 else => {
-                    // TODO(magurotuna)
-                    return error.Unimplemented;
+                    // TODO(magurotuna) skip handling other extensions for now.
+                    continue;
                 },
             }
         }

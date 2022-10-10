@@ -1,4 +1,5 @@
 const std = @import("std");
+const log = std.log;
 const net = std.net;
 const mem = std.mem;
 const math = std.math;
@@ -250,6 +251,8 @@ pub const Conn = struct {
             const frame = try Frame.decode(self.allocator, &payload);
             try self.handleFrame(frame, pkt_num_space);
 
+            log.debug("[recvSingle]: parsed_frame_type={}\n", .{frame});
+
             ack_elicited = ack_elicited or frame.ackEliciting();
         }
 
@@ -444,8 +447,10 @@ pub const Conn = struct {
 
         const payload_offset = out.pos;
 
+        log.debug("need_ack_count={} ack_elicited={}\n", .{ pkt_num_space.recv_packet_need_ack.count(), pkt_num_space.ack_elicited });
         // ACK frame
         if (pkt_num_space.recv_packet_need_ack.count() > 0 and pkt_num_space.ack_elicited) {
+            log.debug("ack is generated\n", .{});
             const ack_delay_micro = pkt_num_space.largest_recv_packet_ack_timer.read() / 1000;
 
             // Encode the ACK delay value as specified in the RFC:
@@ -464,6 +469,8 @@ pub const Conn = struct {
 
             // Now that we have sent an ACK frame, we reset the ack_elicited field.
             pkt_num_space.ack_elicited = false;
+        } else {
+            log.debug("NO ack is generated\n", .{});
         }
 
         // CRYPTO frame

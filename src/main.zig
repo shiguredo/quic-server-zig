@@ -56,7 +56,7 @@ pub fn main() !void {
         if (client.found_existing) {
             // The associated client is found, meaning that it's the existing connection.
             // TODO(magurotuna) implement
-            std.debug.print("UNIMPLEMENTED: the associated client is found.", .{});
+            log.warn("UNIMPLEMENTED: the associated client is found.", .{});
         } else {
             // When there's no clients registered in the client map, it means this client is new.
             if (hdr.packet_type != .initial) {

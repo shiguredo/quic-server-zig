@@ -17,7 +17,7 @@ $ cd third_party/quiche
 $ RUST_LOG=debug cargo run
 ```
 
-You'll see `thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: Done', src/main.rs:188:18` when running the client, meaning that the client has determined that the QUIC connection is established and tried to send a HTTP request, but our server implementation cannot handle properly it at the moment.
+You'll see ``thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: Done', src/main.rs:188:18`` when running the client, meaning that the client has determined that the QUIC connection is established and tried to send a HTTP request, but our server implementation cannot handle properly it at the moment.
 
 [cloudflare/quiche]: https://github.com/cloudflare/quiche
 

@@ -4,6 +4,23 @@
 
 This repository is an experimental implementation and is not intended for production use.
 
+## Status
+
+Currently the server succeeds in establishing a connection with one of the existing client implementation, [cloudflare/quiche]. To try it out, just run the following commands:
+
+```shell
+# Start the server
+$ zig build run
+
+# In another terminal session, run the client
+$ cd third_party/quiche
+$ RUST_LOG=debug cargo run
+```
+
+You'll see `thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: Done', src/main.rs:188:18` when running the client, meaning that the client has determined that the QUIC connection is established and tried to send a HTTP request, but our server implementation cannot handle properly it at the moment.
+
+[cloudflare/quiche]: https://github.com/cloudflare/quiche
+
 ## LICENSE
 
 

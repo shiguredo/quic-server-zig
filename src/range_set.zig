@@ -83,8 +83,8 @@ pub const RangeSet = struct {
             if (!rangeOverlap(r.*, range))
                 break;
 
-            start = math.min(start, r.start);
-            end = math.max(end, r.end);
+            start = @min(start, r.start);
+            end = @max(end, r.end);
             self.removeRange(r.*);
             cur_range = self.prev(start);
         }
@@ -94,8 +94,8 @@ pub const RangeSet = struct {
             if (!rangeOverlap(range, r.*))
                 break;
 
-            start = math.min(start, r.start);
-            end = math.max(end, r.end);
+            start = @min(start, r.start);
+            end = @max(end, r.end);
             self.removeRange(r.*);
             cur_range = self.next(start);
         }

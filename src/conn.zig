@@ -188,7 +188,7 @@ pub const Conn = struct {
             // - 0-RTT
             // and all of these have the Length field at the next position of the buffer.
             const len = try input.consumeVarInt();
-            break :blk @intCast(usize, len);
+            break :blk @as(usize, @intCast(len));
         };
 
         if (pkt_num_and_payload_len > input.remainingCapacity())
@@ -443,7 +443,7 @@ pub const Conn = struct {
         try out.skip(payload_length_len);
 
         // TODO(magurotuna): use the packet number encoding algorithm
-        try out.put(u32, @intCast(u32, pkt_num));
+        try out.put(u32, @as(u32, @intCast(pkt_num)));
 
         const payload_offset = out.pos;
 
@@ -477,7 +477,7 @@ pub const Conn = struct {
         if (pkt_num_space.crypto_stream.isFlushable()) {
             const crypto_offset = pkt_num_space.crypto_stream.send.offset_front();
             const hdr_len = 1 + // frame type
-                bytes.varIntLength(@intCast(u64, crypto_offset)) + // offset
+                bytes.varIntLength(@as(u64, @intCast(crypto_offset))) + // offset
                 2; // length, always encode as 2-byte varint
 
             if (math.sub(usize, left, hdr_len)) |max_len| {
@@ -499,7 +499,7 @@ pub const Conn = struct {
             const payload_end_offset = out.pos;
             var length_field_buf = (try out.splitAt(length_field_offset)).latter;
             try length_field_buf.putVarIntWithLength(
-                @intCast(u64, payload_end_offset - payload_offset + aead_len + pkt_num_len),
+                @as(u64, @intCast(payload_end_offset - payload_offset + aead_len + pkt_num_len)),
                 payload_length_len,
             );
         }

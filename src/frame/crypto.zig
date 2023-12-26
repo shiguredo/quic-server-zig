@@ -37,8 +37,8 @@ pub const Crypto = struct {
 
 pub fn encode_crypto_header(offset: usize, length: usize, out: *bytes.Bytes) !void {
     try out.putVarInt(Crypto.frame_type);
-    try out.putVarInt(@intCast(usize, offset));
-    try out.putVarInt(@intCast(usize, length));
+    try out.putVarInt(@as(usize, @intCast(offset)));
+    try out.putVarInt(@as(usize, @intCast(length)));
 }
 
 test "decode CRYPTO frame" {

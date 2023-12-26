@@ -126,8 +126,8 @@ pub const Handshake = union(HandshakeType) {
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {
-        try out.put(HandshakeType.TagType, @enumToInt(self));
-        try out.put(u24, @intCast(u24, switch (self) {
+        try out.put(HandshakeType.TagType, @intFromEnum(self));
+        try out.put(u24, @as(u24, @intCast(switch (self) {
             .client_hello => |ch| ch.encodedLength(),
             .server_hello => |sh| sh.encodedLength(),
             .encrypted_extensions => |ee| ee.encodedLength(),
@@ -136,7 +136,7 @@ pub const Handshake = union(HandshakeType) {
             .finished => |fi| fi.encodedLength(),
             // TODO(magurotuna): implement
             else => unreachable,
-        }));
+        })));
 
         switch (self) {
             .client_hello => |ch| try ch.encode(out),
@@ -153,9 +153,9 @@ pub const Handshake = union(HandshakeType) {
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         const ty = try in.consume(HandshakeType.TagType);
         const length = try in.consume(u24);
-        var data_buf = Bytes{ .buf = try in.consumeBytes(@intCast(usize, length)) };
+        var data_buf = Bytes{ .buf = try in.consumeBytes(@as(usize, @intCast(length))) };
 
-        return switch (@intToEnum(HandshakeType, ty)) {
+        return switch (@as(HandshakeType, @enumFromInt(ty))) {
             .client_hello => .{ .client_hello = try ClientHello.decode(allocator, &data_buf) },
             .server_hello => .{ .server_hello = try ServerHello.decode(allocator, &data_buf) },
             // TODO(magurotuna): implement

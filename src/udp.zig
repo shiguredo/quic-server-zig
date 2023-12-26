@@ -39,7 +39,7 @@ pub const UdpSocket = struct {
         var addr: os.sockaddr.in6 align(4) = undefined;
         var size: os.socklen_t = @sizeOf(os.sockaddr.in6);
 
-        var addr_ptr = @ptrCast(*os.sockaddr, &addr);
+        var addr_ptr = @as(*os.sockaddr, @ptrCast(&addr));
         const len = try os.recvfrom(self.sockfd, buf, flags | 4, addr_ptr, &size);
 
         return ReceiveFrom{
@@ -59,16 +59,16 @@ fn parseAddr(raw_addr: *const os.sockaddr, size: usize) !net.Address {
             if (size < @sizeOf(os.sockaddr.in))
                 return error.InsufficientBytes;
 
-            const value = @ptrCast(*const os.sockaddr.in, @alignCast(4, raw_addr));
+            const value = @as(*const os.sockaddr.in, @ptrCast(@alignCast(raw_addr)));
             return net.Address{
-                .in = net.Ip4Address.init(@bitCast([4]u8, value.addr), mem.bigToNative(u16, value.port)),
+                .in = net.Ip4Address.init(@as([4]u8, @bitCast(value.addr)), mem.bigToNative(u16, value.port)),
             };
         },
         os.AF.INET6 => {
             if (size < @sizeOf(os.sockaddr.in6))
                 return error.InsufficientBytes;
 
-            const value = @ptrCast(*const os.sockaddr.in6, @alignCast(4, raw_addr));
+            const value = @as(*const os.sockaddr.in6, @ptrCast(@alignCast(raw_addr)));
             return net.Address{
                 .in6 = net.Ip6Address.init(value.addr, mem.bigToNative(u16, value.port), 0, value.scope_id),
             };

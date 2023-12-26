@@ -109,7 +109,7 @@ pub const ServerName = union(NameType) {
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {
-        try out.put(NameType.TagType, @enumToInt(self));
+        try out.put(NameType.TagType, @intFromEnum(self));
         switch (self) {
             .host_name => |h| try h.encode(out),
         }
@@ -117,7 +117,7 @@ pub const ServerName = union(NameType) {
 
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {
         const ty = try in.consume(NameType.TagType);
-        return switch (@intToEnum(NameType, ty)) {
+        return switch (@as(NameType, @enumFromInt(ty))) {
             .host_name => .{ .host_name = try HostName.decode(allocator, in) },
         };
     }

@@ -342,7 +342,7 @@ pub const TransportParameter = union(TransportParameterId) {
     const Self = @This();
 
     pub fn encodedLength(self: Self) usize {
-        const id_len = bytes.varIntLength(@enumToInt(self));
+        const id_len = bytes.varIntLength(@intFromEnum(self));
         const value_len = self.valueLength();
         const param_len = bytes.varIntLength(value_len);
 
@@ -377,8 +377,8 @@ pub const TransportParameter = union(TransportParameterId) {
     }
 
     pub fn encode(self: Self, out: *bytes.Bytes) !void {
-        try out.putVarInt(@enumToInt(self));
-        try out.putVarInt(@intCast(u64, self.valueLength()));
+        try out.putVarInt(@intFromEnum(self));
+        try out.putVarInt(@as(u64, @intCast(self.valueLength())));
 
         switch (self) {
             .max_idle_timeout,
@@ -675,7 +675,7 @@ pub const PreferredAddress = struct {
         try out.put(u16, self.ipv4_port);
         try out.putBytes(&self.ipv6_addr);
         try out.put(u16, self.ipv6_port);
-        try out.put(u8, @intCast(u8, self.connection_id.len));
+        try out.put(u8, @as(u8, @intCast(self.connection_id.len)));
         try out.putBytes(self.connection_id.constSlice());
         try out.putBytes(&self.stateless_reset_token);
     }
@@ -691,7 +691,7 @@ pub const PreferredAddress = struct {
         ret.ipv6_port = try in.consume(u16);
 
         const connection_id_length = try in.consume(u8);
-        const connection_id = try in.consumeBytes(@intCast(usize, connection_id_length));
+        const connection_id = try in.consumeBytes(@as(usize, @intCast(connection_id_length)));
         ret.connection_id = try ConnectionId.fromSlice(connection_id);
 
         mem.copy(u8, &ret.stateless_reset_token, try in.consumeBytes(16));

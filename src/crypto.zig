@@ -327,7 +327,7 @@ fn hkdfExpandLabel(
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const hkdfLabel = try HkdfLabel.new(allocator, @intCast(u16, out.len), label, ctx);
+    const hkdfLabel = try HkdfLabel.new(allocator, @as(u16, @intCast(out.len)), label, ctx);
 
     // TODO(magurotuna): consider more appropriate array size
     var encoded_label: [4096]u8 = undefined;
@@ -478,7 +478,7 @@ pub fn decryptPayload(comptime kind: EndpointKind, allocator: mem.Allocator, enc
         var pn: [iv_length]u8 = undefined;
         mem.writeIntSliceBig(u32, &pn, packet_number);
         var n: [Aes128Gcm.nonce_length]u8 = undefined;
-        for (n) |_, i| {
+        for (n, 0..) |_, i| {
             n[i] = pn[i] ^ iv[i];
         }
 
@@ -756,7 +756,7 @@ pub fn encryptPayload(comptime kind: EndpointKind, allocator: mem.Allocator, pay
         var pn: [iv_length]u8 = undefined;
         mem.writeIntSliceBig(u32, &pn, packet_number);
         var n: [Aes128Gcm.nonce_length]u8 = undefined;
-        for (n) |_, i| {
+        for (n, 0..) |_, i| {
             n[i] = pn[i] ^ iv[i];
         }
 

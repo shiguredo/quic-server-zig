@@ -280,14 +280,14 @@ pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError |
     decryptor.unprotectHeader(sample, &in.buf[0], packet_number_in_buf);
 
     // The last two bits of the unprotected first byte is packet number length minus 1.
-    const pkt_num_len = @intCast(usize, in.buf[0] & packet_num_len_bit) + 1;
+    const pkt_num_len = @as(usize, @intCast(in.buf[0] & packet_num_len_bit)) + 1;
     self.packet_num_len = pkt_num_len;
 
     const pkt_num = switch (pkt_num_len) {
-        1 => @intCast(u64, try in.consume(u8)),
-        2 => @intCast(u64, try in.consume(u16)),
-        3 => @intCast(u64, try in.consume(u24)),
-        4 => @intCast(u64, try in.consume(u32)),
+        1 => @as(u64, @intCast(try in.consume(u8))),
+        2 => @as(u64, @intCast(try in.consume(u16))),
+        3 => @as(u64, @intCast(try in.consume(u24))),
+        4 => @as(u64, @intCast(try in.consume(u32))),
         else => return DecodeError.InvalidPacket,
     };
     self.packet_num = pkt_num;
@@ -298,7 +298,7 @@ pub fn unprotect(self: *Self, in: *Bytes, decryptor: tls.Cryptor) (DecodeError |
 
 pub fn toBytes(self: Self, bs: *Bytes) !void {
     var first: u8 = 0;
-    first |= @intCast(u8, self.packet_num_len -| 1);
+    first |= @as(u8, @intCast(self.packet_num_len -| 1));
 
     // Encode OneRTT (i.e. short) header.
     if (self.packet_type == .one_rtt) {
@@ -328,15 +328,15 @@ pub fn toBytes(self: Self, bs: *Bytes) !void {
     first |= form_bit | fixed_bit | (packet_type << 4);
     try bs.put(u8, first);
     try bs.put(u32, self.version);
-    try bs.put(u8, @intCast(u8, self.dcid.items.len));
+    try bs.put(u8, @as(u8, @intCast(self.dcid.items.len)));
     try bs.putBytes(self.dcid.items);
-    try bs.put(u8, @intCast(u8, self.scid.items.len));
+    try bs.put(u8, @as(u8, @intCast(self.scid.items.len)));
     try bs.putBytes(self.scid.items);
 
     switch (self.packet_type) {
         .initial => {
             if (self.token) |t| {
-                try bs.putVarInt(@intCast(u64, t.items.len));
+                try bs.putVarInt(@as(u64, @intCast(t.items.len)));
                 try bs.putBytes(t.items);
             } else {
                 try bs.putVarInt(0);

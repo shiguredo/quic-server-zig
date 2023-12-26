@@ -161,14 +161,14 @@ pub const Bytes = struct {
         const length = parseVarIntLength(try self.peek(u8));
 
         return switch (length) {
-            1 => @intCast(u64, try self.peek(u8)),
+            1 => @as(u64, @intCast(try self.peek(u8))),
             2 => blk: {
                 const v = try self.peek(u16);
-                break :blk @intCast(u64, v & 0x3fff);
+                break :blk @as(u64, @intCast(v & 0x3fff));
             },
             4 => blk: {
                 const v = try self.peek(u32);
-                break :blk @intCast(u64, v & 0x3fff_ffff);
+                break :blk @as(u64, @intCast(v & 0x3fff_ffff));
             },
             8 => blk: {
                 const v = try self.peek(u64);
@@ -193,7 +193,7 @@ pub const Bytes = struct {
     /// It returns an AraryList composed of those N bytes.
     pub fn consumeBytesOwnedWithVarIntLength(self: *Self, allocator: mem.Allocator) !ArrayList(u8) {
         const len = try self.consumeVarInt();
-        return self.consumeBytesOwned(allocator, @intCast(usize, len));
+        return self.consumeBytesOwned(allocator, @as(usize, @intCast(len)));
     }
 
     /// Writes the given integer into the current position of the buffer, advancing the position.
@@ -235,9 +235,9 @@ pub const Bytes = struct {
             return Error.BufferTooShort;
 
         switch (length) {
-            1 => try self.put(u8, @truncate(u8, value) | (0b00 << 6)),
-            2 => try self.put(u16, @truncate(u16, value) | (0b01 << 14)),
-            4 => try self.put(u32, @truncate(u32, value) | (0b10 << 30)),
+            1 => try self.put(u8, @as(u8, @truncate(value)) | (0b00 << 6)),
+            2 => try self.put(u16, @as(u16, @truncate(value)) | (0b01 << 14)),
+            4 => try self.put(u32, @as(u32, @truncate(value)) | (0b10 << 30)),
             8 => try self.put(u64, value | (0b11 << 62)),
             else => unreachable,
         }

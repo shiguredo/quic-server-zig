@@ -161,7 +161,7 @@ pub const Initial = struct {
             const fixed_bit = 1 << 6;
             const long_packet_type = 0;
             const reserved_bits = 0;
-            const packet_number_length_minus_1 = @intCast(u8, packet_number_length) - 1;
+            const packet_number_length_minus_1 = @as(u8, @intCast(packet_number_length)) - 1;
             break :blk header_form ^ fixed_bit ^ long_packet_type ^ reserved_bits ^ packet_number_length_minus_1;
         };
         try out.put(u8, first_byte);
@@ -169,25 +169,25 @@ pub const Initial = struct {
         // Version
         try out.put(u32, self.version);
         // Destination Connection ID Length
-        try out.put(u8, @intCast(u8, self.destination_connection_id.items.len));
+        try out.put(u8, @as(u8, @intCast(self.destination_connection_id.items.len)));
         // Destination Connection ID
         try out.putBytes(self.destination_connection_id.items);
         // Source Connection ID Length
-        try out.put(u8, @intCast(u8, self.source_connection_id.items.len));
+        try out.put(u8, @as(u8, @intCast(self.source_connection_id.items.len)));
         // Source Connection ID
         try out.putBytes(self.source_connection_id.items);
         // Token Length
-        try out.putVarInt(@intCast(u64, self.token.items.len));
+        try out.putVarInt(@as(u64, @intCast(self.token.items.len)));
         // Token
         try out.putBytes(self.token.items);
         // Length
-        try out.putVarInt(@intCast(u64, packet_number_length + payload_len: {
+        try out.putVarInt(@as(u64, @intCast(packet_number_length + payload_len: {
             var len: usize = 0;
             for (self.payload.items) |f| {
                 len += f.encodedLength();
             }
             break :payload_len len;
-        } + aead_tag_length));
+        } + aead_tag_length)));
         // Packet Number
         try out.put(u32, self.packet_number);
     }

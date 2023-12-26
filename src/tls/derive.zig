@@ -58,7 +58,7 @@ pub fn earlySecret(comptime CipherSuite: type, pre_shared_key: ?[]const u8) [Cip
 /// Caculate "Handshake Secret" as described in RFC 8446:
 ///
 /// https://www.rfc-editor.org/rfc/rfc8446.html#section-7.1
-/// 
+///
 ///           0
 ///           |
 ///           v
@@ -193,7 +193,7 @@ fn hkdfExpandLabel(
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const hkdfLabel = try HkdfLabel.new(allocator, @intCast(u16, out.len), label, ctx);
+    const hkdfLabel = try HkdfLabel.new(allocator, @as(u16, @intCast(out.len)), label, ctx);
 
     // TODO(magurotuna): consider more appropriate array size
     var encoded_label: [4096]u8 = undefined;

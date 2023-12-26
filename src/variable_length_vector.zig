@@ -38,7 +38,7 @@ pub fn VariableLengthVector(comptime T: type, comptime maximum_length: usize) ty
         }
 
         pub fn encode(self: Self, out: *Bytes) !void {
-            try out.put(LengthType, @intCast(LengthType, self.innerDataEncodedLength()));
+            try out.put(LengthType, @as(LengthType, @intCast(self.innerDataEncodedLength())));
 
             for (self.data.items) |item| {
                 try encodeInner(T, item, out);

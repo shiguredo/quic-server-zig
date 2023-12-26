@@ -101,10 +101,10 @@ pub fn Extension(comptime endpoint_kind: enum { server, client }) type {
                 return error.UnknownExtension;
 
             // extension_type
-            try out.put(ExtensionType.TagType, @enumToInt(self));
+            try out.put(ExtensionType.TagType, @intFromEnum(self));
 
             // length of extension_data
-            try out.put(ExtensionDataLengthType, @intCast(ExtensionDataLengthType, switch (self) {
+            try out.put(ExtensionDataLengthType, @as(ExtensionDataLengthType, @intCast(switch (self) {
                 .server_name => |s| s.encodedLength(),
                 .status_request => |s| s.encodedLength(),
                 .supported_groups => |s| s.encodedLength(),
@@ -121,7 +121,7 @@ pub fn Extension(comptime endpoint_kind: enum { server, client }) type {
                 .renegotiation_info => |r| r.encodedLength(),
                 // TODO(magurotuna): implement other extensions
                 else => return error.Unimplemented,
-            }));
+            })));
 
             // exntension data
             switch (self) {

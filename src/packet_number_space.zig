@@ -188,7 +188,7 @@ pub const PacketNumberSpace = struct {
     pub fn updatePacketNumber(self: *Self, packet_number: u64) !void {
         try self.recv_packet_number.put(packet_number, {});
         try self.recv_packet_need_ack.add(packet_number);
-        self.largest_recv_packet_number = math.max(self.largest_recv_packet_number, packet_number);
+        self.largest_recv_packet_number = @max(self.largest_recv_packet_number, packet_number);
     }
 
     /// Get the TLS encryption level corresponding to this packet number space.
@@ -246,7 +246,7 @@ fn decodePacketNumber(largest_pkt_num: u64, truncated_pkt_num: u64, pkt_num_bits
     assert(pkt_num_bits <= 32);
 
     const expected_pkt_num = largest_pkt_num + 1;
-    const pkt_num_win = @intCast(u64, 1) << @intCast(u5, pkt_num_bits);
+    const pkt_num_win = @as(u64, @intCast(1)) << @as(u5, @intCast(pkt_num_bits));
     const pkt_num_hwin = pkt_num_win / 2;
     const pkt_num_mask = pkt_num_win - 1;
 

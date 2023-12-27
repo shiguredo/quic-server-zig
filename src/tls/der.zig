@@ -104,7 +104,7 @@ pub const Parser = struct {
 };
 
 test "consume SEQUENCE identifier" {
-    var buf = [_]u8{@enumToInt(Identifier.SEQUENCE)};
+    var buf = [_]u8{@intFromEnum(Identifier.SEQUENCE)};
     var stream = io.fixedBufferStream(&buf);
 
     const id = try Parser.consumeIdentifier(stream.reader());

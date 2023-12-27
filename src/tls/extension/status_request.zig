@@ -27,7 +27,7 @@ pub const CertificateStatusRequest = union(CertificateStatusType) {
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {
-        try out.put(CertificateStatusType.TagType, @enumToInt(self));
+        try out.put(CertificateStatusType.TagType, @intFromEnum(self));
         switch (self) {
             .ocsp => |o| try o.encode(out),
         }

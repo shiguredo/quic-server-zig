@@ -9,15 +9,32 @@ pub fn build(b: *std.build.Builder) void {
 
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-    const mode = b.standardReleaseOptions();
+    const optimize = b.standardOptimizeOption(.{});
 
-    const exe = b.addExecutable("quic-server-zig", "src/main.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
-    addInternalPackages(exe);
-    exe.install();
+    const variable_length_vector = b.addModule("variable_length_vector", .{
+        .source_file = pkgPath("src/variable_length_vector.zig"),
+    });
 
-    const run_cmd = exe.run();
+    const bytes = b.addModule("bytes", .{
+        .source_file = pkgPath("src/bytes.zig"),
+    });
+
+    const utils = b.addModule("utils", .{
+        .source_file = pkgPath("src/utils.zig"),
+    });
+
+    const exe = b.addExecutable(.{
+        .name = "quic-server-zig",
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.addModule("variable_length_vector", variable_length_vector);
+    exe.addModule("bytes", bytes);
+    exe.addModule("utils", utils);
+    b.installArtifact(exe);
+
+    const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
@@ -26,10 +43,14 @@ pub fn build(b: *std.build.Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const exe_tests = b.addTest("src/main.zig");
-    exe_tests.setTarget(target);
-    exe_tests.setBuildMode(mode);
-    addInternalPackages(exe_tests);
+    const exe_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_tests.addModule("variable_length_vector", variable_length_vector);
+    exe_tests.addModule("bytes", bytes);
+    exe_tests.addModule("utils", utils);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
@@ -40,21 +61,4 @@ fn pkgPath(comptime pathRelativeToProjectRoot: []const u8) std.build.FileSource 
     return .{
         .path = root ++ std.fs.path.sep_str ++ pathRelativeToProjectRoot,
     };
-}
-
-fn addInternalPackages(step: *std.build.LibExeObjStep) void {
-    step.addPackage(.{
-        .name = "variable_length_vector",
-        .source = pkgPath("src/variable_length_vector.zig"),
-    });
-
-    step.addPackage(.{
-        .name = "bytes",
-        .source = pkgPath("src/bytes.zig"),
-    });
-
-    step.addPackage(.{
-        .name = "utils",
-        .source = pkgPath("src/utils.zig"),
-    });
 }

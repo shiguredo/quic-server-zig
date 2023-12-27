@@ -70,6 +70,7 @@ pub fn main() !void {
             const n_processed = try conn.recv(recv_buf[0..recv.num_bytes], addr, recv.src);
             _ = n_processed;
 
+            client.key_ptr.* = conn.scid.items;
             client.value_ptr.* = conn;
         }
 

@@ -184,8 +184,13 @@ fn main() {
             info!("sending HTTP request for {}", dummy_path);
 
             let req = format!("GET {}\r\n", dummy_path);
-            conn.stream_send(HTTP_REQ_STREAM_ID, req.as_bytes(), true)
-                .unwrap();
+            match conn.stream_send(HTTP_REQ_STREAM_ID, req.as_bytes(), true) {
+                Ok(v) => {},
+                Err(quiche::Error::Done) => { },
+                Err(e) => {
+                    panic!("Failed to send packet: {:?}", e);
+                },
+            }
 
             req_sent = true;
         }

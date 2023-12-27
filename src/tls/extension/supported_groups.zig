@@ -122,7 +122,7 @@ pub const NamedGroup = enum(u16) {
     }
 
     pub fn encode(self: Self, out: *Bytes) !void {
-        try out.put(TagType, @enumToInt(self));
+        try out.put(TagType, @intFromEnum(self));
     }
 
     pub fn decode(allocator: std.mem.Allocator, in: *Bytes) !Self {

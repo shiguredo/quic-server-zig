@@ -49,31 +49,31 @@ pub const Cryptor = struct {
         assert(suite_info == .Pointer); // Must be a pointer
         assert(suite_info.Pointer.size == .One); // Must be a single-item pointer
 
-        const alignment = suite_info.Pointer.alignment;
+        // const alignment = suite_info.Pointer.alignment;
 
         const gen = struct {
             fn deinitImpl(ptr: *anyopaque) void {
-                const self = @ptrCast(Suite, @alignCast(alignment, ptr));
+                const self = @as(Suite, @ptrCast(@alignCast(ptr)));
                 deinitFn(self);
             }
 
             fn protectHeaderImpl(ptr: *anyopaque, sample: [16]u8, first: *u8, packet_number: []u8) void {
-                const self = @ptrCast(Suite, @alignCast(alignment, ptr));
+                const self = @as(Suite, @ptrCast(@alignCast(ptr)));
                 protectHeaderFn(self, sample, first, packet_number);
             }
 
             fn unprotectHeaderImpl(ptr: *anyopaque, sample: [16]u8, first: *u8, packet_number: []u8) void {
-                const self = @ptrCast(Suite, @alignCast(alignment, ptr));
+                const self = @as(Suite, @ptrCast(@alignCast(ptr)));
                 unprotectHeaderFn(self, sample, first, packet_number);
             }
 
             fn encryptPayloadImpl(ptr: *anyopaque, packet_number: u64, header: []const u8, payload: []const u8, encrypted: []u8) [16]u8 {
-                const self = @ptrCast(Suite, @alignCast(alignment, ptr));
+                const self = @as(Suite, @ptrCast(@alignCast(ptr)));
                 return encryptPayloadFn(self, packet_number, header, payload, encrypted);
             }
 
             fn decryptPayloadImpl(ptr: *anyopaque, packet_number: u64, header: []const u8, payload: []const u8, decrypted: []u8) AuthenticationError!void {
-                const self = @ptrCast(Suite, @alignCast(alignment, ptr));
+                const self = @as(Suite, @ptrCast(@alignCast(ptr)));
                 try decryptPayloadFn(self, packet_number, header, payload, decrypted);
             }
 
@@ -259,7 +259,7 @@ pub const TLS_AES_128_GCM_SHA256 = struct {
             var pn: [Aead.nonce_length]u8 = undefined;
             mem.writeIntSliceBig(u64, &pn, packet_number);
             var n: [Aead.nonce_length]u8 = undefined;
-            for (n) |_, i| {
+            for (n, 0..) |_, i| {
                 n[i] = pn[i] ^ self.iv[i];
             }
 
@@ -300,7 +300,7 @@ pub const TLS_AES_128_GCM_SHA256 = struct {
             var pn: [Aead.nonce_length]u8 = undefined;
             mem.writeIntSliceBig(u64, &pn, packet_number);
             var n: [Aead.nonce_length]u8 = undefined;
-            for (n) |_, i| {
+            for (n, 0..) |_, i| {
                 n[i] = pn[i] ^ self.iv[i];
             }
 
